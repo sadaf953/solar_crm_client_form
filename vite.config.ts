@@ -6,6 +6,7 @@ import { generateProposal } from './src/api-handler';
 
 export default defineConfig(() => {
   return {
+    base: '/solar_crm_client_form/',
     plugins: [
       react(), 
       tailwindcss(),

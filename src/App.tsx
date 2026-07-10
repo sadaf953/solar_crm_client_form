@@ -2686,6 +2686,7 @@ Thank you for submitting your custom specifications. Here is your requirements m
                       </button>
                     </div>
                   </div>
+                    </div>
                   )}
                 </div>
               </div>
