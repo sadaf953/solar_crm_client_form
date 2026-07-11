@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://sadaf953.github.io/solar_crm_client_form/",
+  "homepage": "https://clientform.mahvishsadaf.com/",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
