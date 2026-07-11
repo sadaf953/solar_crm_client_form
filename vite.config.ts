@@ -6,7 +6,7 @@ import { generateProposal } from './src/api-handler';
 
 export default defineConfig(() => {
   return {
-    base: '/',
+    base: '',
     plugins: [
       react(), 
       tailwindcss(),
