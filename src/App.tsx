@@ -114,6 +114,9 @@ export default function App() {
   const [billingConfirmed, setBillingConfirmed] = useState(false);
   const [subsidyConfirmed, setSubsidyConfirmed] = useState(false);
 
+  // Installer Identity confirm/lock state
+  const [identityConfirmed, setIdentityConfirmed] = useState(false);
+
   // Backend Credentials setup
   const [backendEmail, setBackendEmail] = useState('');
   const [backendPassword, setBackendPassword] = useState('');
@@ -211,6 +214,7 @@ export default function App() {
       financialsStatus, customPaymentMethods, subsidyEnabled, bankInfoEnabled,
       billingConfirmed, subsidyConfirmed,
       securityLevels, activeSubmission, aiProposal,
+      identityConfirmed,
       submittedAt: new Date().toLocaleString()
     };
 
@@ -333,6 +337,7 @@ export default function App() {
     if (d.securityLevels !== undefined) setSecurityLevels(d.securityLevels);
     if (d.activeSubmission !== undefined) setActiveSubmission(d.activeSubmission);
     if (d.aiProposal !== undefined) setAiProposal(d.aiProposal);
+    if (d.identityConfirmed !== undefined) setIdentityConfirmed(d.identityConfirmed);
   };
 
   const startFreshSession = (phone: string, accessId: string) => {
@@ -403,6 +408,7 @@ export default function App() {
     ]);
     setActiveSubmission(null);
     setAiProposal('');
+    setIdentityConfirmed(false);
   };
 
   // Client login / workspace loader (Supabase)
@@ -653,7 +659,14 @@ export default function App() {
               </p>
             )}
 
-            {/* View-only: show notes only if present */}
+            {/* View-only: show dropdown options if present */}
+            {fType === 'dropdown' && field.dropdownOptions && (
+              <p className="text-[11px] text-slate-600 font-medium pt-1">
+                <span className="font-black text-slate-700">Options:</span> {field.dropdownOptions}
+              </p>
+            )}
+
+            {/* View-only: show notes if present */}
             {field.notes && (
               <p className="text-[11px] text-slate-600 font-medium italic pt-1">
                 Note: {field.notes}
@@ -1557,69 +1570,130 @@ export default function App() {
               <div className="space-y-6">
               {/* TOP LEVEL CONTACT PANEL */}
               <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-                <div className="flex items-center gap-2 mb-5">
-                  <div className="w-2 h-6 bg-amber-500 rounded-full"></div>
-                  <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                    1. Installer Identity & Primary Contacts
-                  </h3>
+                <div className="flex items-center justify-between gap-2 mb-5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-6 bg-amber-500 rounded-full"></div>
+                    <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                      1. Installer Identity & Primary Contacts
+                    </h3>
+                  </div>
+                  {identityConfirmed && (
+                    <button
+                      type="button"
+                      onClick={() => setIdentityConfirmed(false)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all cursor-pointer shrink-0"
+                    >
+                      <Edit className="w-3 h-3" />
+                      Edit
+                    </button>
+                  )}
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Your Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={clientName}
-                      onChange={(e) => setClientName(e.target.value)}
-                      placeholder="e.g., Rajesh Sharma"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                    />
-                  </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Phone Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      value={clientPhone}
-                      onChange={(e) => setClientPhone(e.target.value)}
-                      placeholder="e.g., +91 98765 43210"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                    />
+                {identityConfirmed ? (
+                  // LOCKED VIEW
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-in">
+                    {clientName && (
+                      <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Full Name</p>
+                        <p className="text-sm font-bold text-slate-800">{clientName}</p>
+                      </div>
+                    )}
+                    {clientPhone && (
+                      <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Phone Number</p>
+                        <p className="text-sm font-bold text-slate-800">{clientPhone}</p>
+                      </div>
+                    )}
+                    {companyName && (
+                      <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Solar Company</p>
+                        <p className="text-sm font-bold text-slate-800">{companyName}</p>
+                      </div>
+                    )}
+                    {clientEmail && (
+                      <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Email</p>
+                        <p className="text-sm font-bold text-slate-800">{clientEmail}</p>
+                      </div>
+                    )}
+                    {!clientName && !clientPhone && !companyName && !clientEmail && (
+                      <p className="text-xs text-slate-400 col-span-4 italic">No contact info entered yet.</p>
+                    )}
                   </div>
+                ) : (
+                  // EDIT MODE
+                  <div className="space-y-4 animate-fade-in">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                          Your Full Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={clientName}
+                          onChange={(e) => setClientName(e.target.value)}
+                          placeholder="e.g., Rajesh Sharma"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Solar Company Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="e.g., Peak Solar Power"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                    />
-                  </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                          Phone Number <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          value={clientPhone}
+                          onChange={(e) => setClientPhone(e.target.value)}
+                          placeholder="e.g., +91 98765 43210"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Email Address (Optional)
-                    </label>
-                    <input
-                      type="email"
-                      value={clientEmail}
-                      onChange={(e) => setClientEmail(e.target.value)}
-                      placeholder="e.g., info@peaksolar.in"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                    />
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                          Solar Company Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          placeholder="e.g., Peak Solar Power"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                          Email Address (Optional)
+                        </label>
+                        <input
+                          type="email"
+                          value={clientEmail}
+                          onChange={(e) => setClientEmail(e.target.value)}
+                          placeholder="e.g., info@peaksolar.in"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!clientName.trim() || !clientPhone.trim() || !companyName.trim()) return;
+                          setIdentityConfirmed(true);
+                        }}
+                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        Confirm
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Operational Info Fields with confirm-to-view behavior */}
                 <div className="mt-5 pt-5 border-t border-slate-100 space-y-4">
