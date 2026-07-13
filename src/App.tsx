@@ -37,7 +37,7 @@ import {
   Edit,
   Settings
 } from 'lucide-react';
-import { INITIAL_SECTIONS } from './initialData';
+import { INITIAL_SECTIONS, PREDEFINED_PROJECT_FIELDS, PREDEFINED_FINANCE_FIELDS, PredefinedField } from './initialData';
 import { SectionConfig, FieldConfig, ClientSubmission } from './types';
 import { supabase } from './supabaseClient';
 
@@ -309,7 +309,25 @@ export default function App() {
     if (d.backendEmail !== undefined) setBackendEmail(d.backendEmail);
     if (d.backendPassword !== undefined) setBackendPassword(d.backendPassword);
     if (d.financialRoleViewPermission !== undefined) setFinancialRoleViewPermission(d.financialRoleViewPermission);
-    if (d.sections !== undefined) setSections(d.sections);
+    if (d.sections !== undefined) {
+      // Merge loaded sections with INITIAL_SECTIONS to ensure new/missing sections are preserved
+      const mergedSections = INITIAL_SECTIONS.map(initSec => {
+        const loadedSec = d.sections.find((s: any) => s.id === initSec.id);
+        if (!loadedSec) return initSec;
+        const mergedFields = [...loadedSec.fields];
+        initSec.fields.forEach(initField => {
+          const loadedField = loadedSec.fields.find((f: any) => f.id === initField.id);
+          if (!loadedField) {
+            mergedFields.push(initField);
+          }
+        });
+        return {
+          ...loadedSec,
+          fields: mergedFields
+        };
+      });
+      setSections(mergedSections);
+    }
     if (d.hasMultipleBranches !== undefined) setHasMultipleBranches(d.hasMultipleBranches);
     if (d.crnTrackingType !== undefined) setCrnTrackingType(d.crnTrackingType);
     if (d.crnScope !== undefined) setCrnScope(d.crnScope);
@@ -445,7 +463,7 @@ export default function App() {
     setTimeout(() => setSaveFeedback(''), 4000);
   };
 
-    const handleAddSecurityLevel = () => {
+  const handleAddSecurityLevel = () => {
     if (!newLevelName.trim() || !newLevelDesc.trim()) return;
     const cleanName = newLevelName.trim();
     if (securityLevels.some(sl => sl.name.toLowerCase() === cleanName.toLowerCase())) return;
@@ -480,7 +498,7 @@ export default function App() {
     setHasMultipleBranches(multiple);
     setSections(prev =>
       prev.map(sec => {
-        if (sec.id === 'customers') {
+        if (sec.id === 'company_tracking') {
           return {
             ...sec,
             fields: sec.fields.map(f => {
@@ -603,7 +621,7 @@ export default function App() {
     const isIncluded = field.included;
     const isConfirmed = field.confirmed;
     const fType = field.fieldType || 'text';
-    
+
     // Type visual label mapping
     const typeLabelMap = {
       text: 'Text',
@@ -611,7 +629,7 @@ export default function App() {
       dropdown: 'Dropdown',
       date: 'Date'
     };
-    
+
     // 1. Render for COMPACT FROZEN/CONFIRMED state
     if (isConfirmed) {
       if (isIncluded) {
@@ -639,7 +657,7 @@ export default function App() {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex items-center shrink-0">
                 <button
                   type="button"
@@ -661,9 +679,16 @@ export default function App() {
 
             {/* View-only: show dropdown options if present */}
             {fType === 'dropdown' && field.dropdownOptions && (
-              <p className="text-[11px] text-slate-600 font-medium pt-1">
-                <span className="font-black text-slate-700">Options:</span> {field.dropdownOptions}
-              </p>
+              <div className="pt-1.5 space-y-1">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Dropdown Options</p>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {field.dropdownOptions.split(',').map((opt, oIdx) => (
+                    <span key={oIdx} className="bg-indigo-50 text-indigo-700 border border-indigo-100/70 text-[10px] font-bold px-2 py-0.5 rounded-lg">
+                      {opt.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* View-only: show notes if present */}
@@ -694,7 +719,7 @@ export default function App() {
                 </span>
               </div>
             </div>
-            
+
             <div className="flex items-center shrink-0">
               <button
                 type="button"
@@ -773,15 +798,17 @@ export default function App() {
                 setSections(prev =>
                   prev.map(sec => {
                     if (sec.id === sectionId) {
-                      return { ...sec, fields: sec.fields.map(f => {
-                        if (f.id === field.id) {
-                          if (f.fieldType === 'dropdown' && !f.dropdownOptions?.trim()) {
-                            return { ...f, included: true, confirmed: true, dropdownOptions: 'Option 1, Option 2' };
+                      return {
+                        ...sec, fields: sec.fields.map(f => {
+                          if (f.id === field.id) {
+                            if (f.fieldType === 'dropdown' && !f.dropdownOptions?.trim()) {
+                              return { ...f, included: true, confirmed: true, dropdownOptions: 'Option 1, Option 2' };
+                            }
+                            return { ...f, included: true, confirmed: true };
                           }
-                          return { ...f, included: true, confirmed: true };
-                        }
-                        return f;
-                      })};
+                          return f;
+                        })
+                      };
                     }
                     return sec;
                   })
@@ -806,9 +833,8 @@ export default function App() {
                     key={type}
                     type="button"
                     onClick={() => handleFieldTypeChange(sectionId, field.id, type)}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-black text-center transition cursor-pointer ${
-                      fType === type ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/60'
-                    }`}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-black text-center transition cursor-pointer ${fType === type ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/60'
+                      }`}
                   >
                     {labelMap[type]}
                   </button>
@@ -868,6 +894,38 @@ export default function App() {
   const [customFieldDropdownOptions, setCustomFieldDropdownOptions] = useState('');
   const [customBulkFieldInput, setCustomBulkFieldInput] = useState('');
 
+  // Predefined field picker states
+  const [showPredefinedPicker, setShowPredefinedPicker] = useState<string | null>(null); // sectionId
+  const [predefinedPickerCategory, setPredefinedPickerCategory] = useState<string>('All');
+
+  const handleAddPredefinedField = (sectionId: string, preField: PredefinedField) => {
+    const alreadyExists = sections.find(s => s.id === sectionId)?.fields.some(f => f.id === preField.id);
+    if (alreadyExists) {
+      setSaveFeedback(`"${preField.label}" is already in this section.`);
+      setTimeout(() => setSaveFeedback(''), 2000);
+      return;
+    }
+    const newField: FieldConfig = {
+      id: preField.id,
+      label: preField.label,
+      description: preField.description,
+      included: true,
+      notes: '',
+      fieldType: preField.fieldType,
+      dropdownOptions: preField.dropdownOptions || '',
+      isCustom: false,
+      confirmed: false
+    };
+    setSections(prev => prev.map(sec => {
+      if (sec.id === sectionId) {
+        return { ...sec, fields: [...sec.fields, newField] };
+      }
+      return sec;
+    }));
+    setSaveFeedback(`Added: ${preField.label}`);
+    setTimeout(() => setSaveFeedback(''), 1800);
+  };
+
   const handleAddCustomField = (sectionId: string) => {
     if (!customFieldName.trim()) return;
 
@@ -909,7 +967,7 @@ export default function App() {
     setSections(prev => prev.map(sec => {
       if (sec.id === sectionId) {
         const newFields = names.map(name => ({
-          id: `custom_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+          id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           label: name,
           description: 'Custom financial field',
           included: true,
@@ -1057,8 +1115,8 @@ export default function App() {
       errors.push('Please enter your solar energy company name.');
     }
 
-    if (stagesStatus === 'configured' && customStages.length > 0 && (customStages.length < 3 || customStages.length > 15)) {
-      errors.push(`Please enter between 3 and 15 workflow stages, or choose "Consultation Needed". Currently: ${customStages.length} stages.`);
+    if (stagesStatus === 'configured' && customStages.length > 0 && customStages.length < 3) {
+      errors.push(`Please enter at least 3 workflow stages, or choose "Consultation Needed". Currently: ${customStages.length} stages.`);
     }
 
     if (errors.length > 0) {
@@ -1109,111 +1167,110 @@ export default function App() {
 
     setEmailStatus('sending');
     try {
-        const cleanJsonPayload = {
-          companyName: submission.companyName,
-          clientName: submission.clientName,
-          clientPhone: submission.clientPhone,
-          clientEmail: submission.clientEmail,
-          submittedAt: submission.submittedAt,
-          userCount: submission.userCount,
-          adminUserCount: submission.adminUserCount,
-          salesUserCount: submission.salesUserCount,
-          financeUserCount: submission.financeUserCount,
-          hasWebsite: submission.hasWebsite,
-          websiteAddress: submission.websiteAddress,
-          liveProjectsCount: submission.liveProjectsCount,
-          hasMultipleBranches: hasMultipleBranches,
-          branchList: hasMultipleBranches ? branchList : [],
-          crnTrackingType: submission.crnTrackingType,
-          crnScope: submission.crnScope,
-          crnPrefix: submission.crnPrefix,
-          stagesStatus: submission.stagesStatus,
-          customStages: submission.stages,
-          includeFinancialStage: includeFinancialStage,
-          financialStageName: includeFinancialStage ? financialStageName : '',
-          financialsStatus: financialsStatus,
-          paymentMethods: customPaymentMethods,
-          subsidyEnabled: subsidyEnabled,
-          bankInfoEnabled: bankInfoEnabled,
-          financialRoleViewPermission: submission.financialRoleViewPermission,
-          customNotes: submission.customNotes,
-          modules: submission.sections.map(sec => ({
-            id: sec.id,
-            title: sec.title,
-            description: sec.description,
-            enabled: sec.id === 'subsidy_status_history' ? subsidyEnabled : sec.id === 'bank_info' ? bankInfoEnabled : sec.id === 'financials' ? (financialsStatus === 'configured') : true,
-            fields: sec.fields.map(f => ({
-              id: f.id,
-              label: f.label,
-              description: f.description,
-              included: f.included,
-              fieldType: f.fieldType || 'text',
-              isCustom: !!f.isCustom,
-              dropdownOptions: f.dropdownOptions || ''
-            }))
+      const cleanJsonPayload = {
+        companyName: submission.companyName,
+        clientName: submission.clientName,
+        clientPhone: submission.clientPhone,
+        clientEmail: submission.clientEmail,
+        submittedAt: submission.submittedAt,
+        userCount: submission.userCount,
+        adminUserCount: submission.adminUserCount,
+        salesUserCount: submission.salesUserCount,
+        financeUserCount: submission.financeUserCount,
+        hasWebsite: submission.hasWebsite,
+        websiteAddress: submission.websiteAddress,
+        liveProjectsCount: submission.liveProjectsCount,
+        hasMultipleBranches: hasMultipleBranches,
+        branchList: hasMultipleBranches ? branchList : [],
+        crnTrackingType: submission.crnTrackingType,
+        crnScope: submission.crnScope,
+        crnPrefix: submission.crnPrefix,
+        stagesStatus: submission.stagesStatus,
+        customStages: submission.stages,
+        includeFinancialStage: includeFinancialStage,
+        financialStageName: includeFinancialStage ? financialStageName : '',
+        financialsStatus: financialsStatus,
+        paymentMethods: customPaymentMethods,
+        subsidyEnabled: subsidyEnabled,
+        bankInfoEnabled: bankInfoEnabled,
+        financialRoleViewPermission: submission.financialRoleViewPermission,
+        customNotes: submission.customNotes,
+        modules: submission.sections.map(sec => ({
+          id: sec.id,
+          title: sec.title,
+          description: sec.description,
+          enabled: sec.id === 'subsidy_status_history' ? subsidyEnabled : sec.id === 'bank_info' ? bankInfoEnabled : sec.id === 'financials' ? (financialsStatus === 'configured') : true,
+          fields: sec.fields.map(f => ({
+            id: f.id,
+            label: f.label,
+            description: f.description,
+            included: f.included,
+            fieldType: f.fieldType || 'text',
+            isCustom: !!f.isCustom,
+            dropdownOptions: f.dropdownOptions || ''
           }))
-        };
+        }))
+      };
 
-        const jsonBlob = new Blob([JSON.stringify(cleanJsonPayload, null, 2)], { type: 'application/json' });
-        
-        const formData = new FormData();
-        formData.append('attachment', jsonBlob, `${submission.companyName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_spec_blueprint.json`);
-        formData.append('_subject', `📩 Solar CRM Configurator Blueprint Submission: ${submission.companyName} (${submission.clientPhone})`);
-        formData.append('Company Name', submission.companyName);
-        formData.append('Contact Person', submission.clientName);
-        formData.append('Phone Number', submission.clientPhone);
-        formData.append('Email Address', submission.clientEmail || 'Not Specified');
-        formData.append('Has Website', submission.hasWebsite ? `Yes (${submission.websiteAddress})` : 'No');
-        formData.append('Live Projects Count', submission.liveProjectsCount || 'Not Specified');
-        formData.append('Total Staff Users', submission.userCount || 'Not Specified');
-        formData.append('CRN / Project ID Tracking', submission.crnTrackingType === 'default'
-          ? `Auto-Increment (${
-              submission.crnScope === 'crn'
-                ? 'CRN Only'
-                : submission.crnScope === 'project'
-                ? 'Project ID Only'
-                : 'Both CRN & Project ID'
-            }, Prefix: ${submission.crnPrefix})`
-          : 'Skipped');
-        formData.append('CRM Admin Login Email', submission.backendEmail || 'Not Specified');
-        formData.append('CRM Admin Login Password', submission.backendPassword || 'Not Specified');
-        formData.append('Financial Role View Permission', submission.financialRoleViewPermission === 'all' ? 'Can view all modules (read-only)' : 'None (restricted)');
-        formData.append('Branches setup', hasMultipleBranches ? `Multiple: ${branchList.join(', ')}` : 'Single Branch');
-        formData.append('Workflow Pipeline Sequence', stagesStatus === 'configured' ? customStages.join(' -> ') : 'Expert recommendations requested');
-        formData.append('Financial Ledger Tracked', financialsStatus === 'configured' ? 'Yes' : 'No');
-        formData.append('Include Final Payout Stage', includeFinancialStage ? `Yes (${financialStageName})` : 'No');
-        formData.append('Payment Methods Allowed', customPaymentMethods.join(', '));
-        formData.append('Government Subsidy Status History', subsidyEnabled ? 'Enabled' : 'Bypassed');
-        formData.append('Customer Bank Info & Loans Coordination', bankInfoEnabled ? 'Enabled' : 'Bypassed');
-        formData.append('General Comments & Custom Notes', submission.customNotes || 'None');
-        formData.append('Submission Time (UTC)', submission.submittedAt);
-        formData.append('_honey', '');
-        formData.append('_template', 'table');
+      const jsonBlob = new Blob([JSON.stringify(cleanJsonPayload, null, 2)], { type: 'application/json' });
 
-        const formSubmitRes = await fetch('https://formsubmit.co/ajax/enquiry@mahvishsadaf.com', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json'
-          },
-          body: formData
-        });
+      const formData = new FormData();
+      formData.append('attachment', jsonBlob, `${submission.companyName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_spec_blueprint.json`);
+      formData.append('_subject', `📩 Solar CRM Configurator Blueprint Submission: ${submission.companyName} (${submission.clientPhone})`);
+      formData.append('Company Name', submission.companyName);
+      formData.append('Contact Person', submission.clientName);
+      formData.append('Phone Number', submission.clientPhone);
+      formData.append('Email Address', submission.clientEmail || 'Not Specified');
+      formData.append('Has Website', submission.hasWebsite ? `Yes (${submission.websiteAddress})` : 'No');
+      formData.append('Live Projects Count', submission.liveProjectsCount || 'Not Specified');
+      formData.append('Total Staff Users', submission.userCount || 'Not Specified');
+      formData.append('CRN / Project ID Tracking', submission.crnTrackingType === 'default'
+        ? `Auto-Increment (${submission.crnScope === 'crn'
+          ? 'CRN Only'
+          : submission.crnScope === 'project'
+            ? 'Project ID Only'
+            : 'Both CRN & Project ID'
+        }, Prefix: ${submission.crnPrefix})`
+        : 'Skipped');
+      formData.append('CRM Admin Login Email', submission.backendEmail || 'Not Specified');
+      formData.append('CRM Admin Login Password', submission.backendPassword || 'Not Specified');
+      formData.append('Financial Role View Permission', submission.financialRoleViewPermission === 'all' ? 'Can view all modules (read-only)' : 'None (restricted)');
+      formData.append('Branches setup', hasMultipleBranches ? `Multiple: ${branchList.join(', ')}` : 'Single Branch');
+      formData.append('Workflow Pipeline Sequence', stagesStatus === 'configured' ? customStages.join(' -> ') : 'Expert recommendations requested');
+      formData.append('Financial Ledger Tracked', financialsStatus === 'configured' ? 'Yes' : 'No');
+      formData.append('Include Final Payout Stage', includeFinancialStage ? `Yes (${financialStageName})` : 'No');
+      formData.append('Payment Methods Allowed', customPaymentMethods.join(', '));
+      formData.append('Government Subsidy Status History', subsidyEnabled ? 'Enabled' : 'Bypassed');
+      formData.append('Customer Bank Info & Loans Coordination', bankInfoEnabled ? 'Enabled' : 'Bypassed');
+      formData.append('General Comments & Custom Notes', submission.customNotes || 'None');
+      formData.append('Submission Time (UTC)', submission.submittedAt);
+      formData.append('_honey', '');
+      formData.append('_template', 'table');
 
-        if (formSubmitRes.ok) {
-          setEmailStatus('success');
-        } else {
-          setEmailStatus('failed');
-        }
-      } catch (submitErr) {
-        console.error('FormSubmit transmission failed:', submitErr);
+      const formSubmitRes = await fetch('https://formsubmit.co/ajax/enquiry@mahvishsadaf.com', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json'
+        },
+        body: formData
+      });
+
+      if (formSubmitRes.ok) {
+        setEmailStatus('success');
+      } else {
         setEmailStatus('failed');
       }
-    };
+    } catch (submitErr) {
+      console.error('FormSubmit transmission failed:', submitErr);
+      setEmailStatus('failed');
+    }
+  };
 
   // Generate plain-text Markdown structure to copy/download
   const getRawMarkdown = () => {
     if (!activeSubmission) return '';
     let md = `# Solar CRM Requirements Specification Sheet\n\n`;
-    
+
     md += `## 📋 Client Profile & Operational Parameters\n`;
     md += `- **Installer Company**: ${activeSubmission.companyName}\n`;
     md += `- **Primary Contact Name**: ${activeSubmission.clientName}\n`;
@@ -1225,17 +1282,15 @@ export default function App() {
     md += `- **Has Website**: ${activeSubmission.hasWebsite ? `Yes (${activeSubmission.websiteAddress})` : 'No (To be hosted on dynamic cloud domain)'}\n`;
     md += `- **Active/Live Projects**: ${activeSubmission.liveProjectsCount || 'Not specified'}\n`;
     md += `- **Total System Users / Staff**: ${activeSubmission.userCount || 'Not specified'}\n`;
-    md += `- **CRN / Project ID Tracking Mode**: ${
-      activeSubmission.crnTrackingType === 'default'
-        ? `Auto-Increment (${
-            activeSubmission.crnScope === 'crn'
-              ? 'CRN Only'
-              : activeSubmission.crnScope === 'project'
-              ? 'Project ID Only'
-              : 'Both CRN & Project ID'
-          }, Prefix: "${activeSubmission.crnPrefix || 'CRN-2026-'}")`
+    md += `- **CRN / Project ID Tracking Mode**: ${activeSubmission.crnTrackingType === 'default'
+        ? `Auto-Increment (${activeSubmission.crnScope === 'crn'
+          ? 'CRN Only'
+          : activeSubmission.crnScope === 'project'
+            ? 'Project ID Only'
+            : 'Both CRN & Project ID'
+        }, Prefix: "${activeSubmission.crnPrefix || 'CRN-2026-'}")`
         : 'Skipped'
-    }\n\n`;
+      }\n\n`;
 
     md += `## 🔐 Requested Backend Setup Credentials\n`;
     md += `- **Created CRM Admin Email**: ${activeSubmission.backendEmail || 'Not specified'}\n`;
@@ -1273,7 +1328,7 @@ export default function App() {
         approved.forEach(f => {
           const fType = f.fieldType || 'text';
           const formatStr = fType === 'dropdown' ? `Dropdown List (${f.dropdownOptions || 'no options specified'})` : `${fType.toUpperCase()} Field`;
-          
+
           md += `- **${f.label}** (\`${f.id}\`${f.isCustom ? ', Custom Field' : ''}): ${f.description}\n`;
           md += `  - *Input Component:* ${formatStr}\n`;
           if (f.notes.trim()) {
@@ -1347,11 +1402,11 @@ export default function App() {
             <p className="text-slate-400 text-xs sm:text-sm mt-2 font-medium">Bespoke Requirements Discovery, Database & Stage Flow Planner</p>
           </div>
 
-          <form 
+          <form
             onSubmit={(e) => {
               e.preventDefault();
               handleClientStartOrResume(phoneInput, accessIdInput);
-            }} 
+            }}
             className="space-y-4 relative z-10"
           >
             <div className="bg-slate-800/40 p-5 rounded-2xl border border-slate-800 space-y-4">
@@ -1424,11 +1479,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-amber-500 selection:text-slate-900">
-      
+
       {/* Dynamic Header */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200 py-3.5 px-4 sm:px-6 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          
+
           <div className="flex items-center gap-3">
             <div className="bg-amber-500 p-2.5 rounded-2xl text-slate-950 shadow-md">
               <Sun className="w-7 h-7 text-amber-950 animate-spin-slow" />
@@ -1475,7 +1530,7 @@ export default function App() {
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 border border-slate-700 animate-fade-in">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></div>
           <span className="text-xs font-bold">{saveFeedback}</span>
-          <button 
+          <button
             onClick={() => setSaveFeedback('')}
             className="text-slate-400 hover:text-white font-bold ml-2 text-xs"
           >
@@ -1485,1254 +1540,1052 @@ export default function App() {
       )}
 
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6">
-        
+
         {/* If Form has not been submitted yet */}
         {!activeSubmission ? (
           (
             <div className="space-y-8">
-            
-            {/* Guide Info Card */}
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden border border-slate-800">
-              <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
-              <div className="relative z-10 max-w-4xl">
-                <span className="bg-amber-400/20 text-amber-300 text-[10.5px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-amber-400/20">
-                  Dynamic Specification Tool
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-black mt-3 tracking-tight leading-tight">
-                  Design Your Dream Solar CRM Blueprint
-                </h2>
-                <p className="mt-2.5 text-slate-300 text-sm sm:text-base leading-relaxed">
-                  We design custom operational CRMs specifically optimized for Solar Installers. Review this form line-by-line:
-                  <strong> Approve (Keep)</strong> modules that matter to your business, <strong>Delete (Remove)</strong> the ones you don't use, and add your own custom stages or variables.
-                </p>
-              </div>
-            </div>
 
-            {/* Error notifications */}
-            {formErrors.length > 0 && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-2xl flex items-start gap-3 shadow-xs">
-                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-bold text-red-800">Please correct the following errors before submitting:</h4>
-                  <ul className="list-disc list-inside text-xs text-red-700 mt-1 space-y-1">
-                    {formErrors.map((err, idx) => (
-                      <li key={idx} className="font-semibold">{err}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* Main Form */}
-            <form onSubmit={handleSubmitForm} className="space-y-8">
-
-              {/* TAB NAVIGATION - SLIDING PILL */}
-              {(() => {
-                const tabs: { label: string; icon: string; hidden?: boolean }[] = [
-                  { label: 'Profile', icon: '👤' },
-                  { label: 'Security', icon: '🔒' },
-                  { label: 'Pipeline', icon: '🚀' },
-                  { label: 'Customers', icon: '🧑‍💼' },
-                  { label: 'Projects', icon: '🏗️' },
-                  { label: 'Finance', icon: '💰' },
-                  { label: 'Submit', icon: '✅' },
-                ];
-                const visibleTabs = tabs.filter(t => !t.hidden);
-                return (
-                  <div className="sticky top-0 z-20 -mx-6 sm:-mx-8 px-3 sm:px-4 py-2 bg-white/95 backdrop-blur-sm border-b border-slate-200/80 shadow-sm mb-4 rounded-t-3xl overflow-x-auto">
-                    <div className="flex gap-1 min-w-max p-1 bg-slate-100 rounded-2xl w-fit">
-                      {visibleTabs.map((tab, i) => {
-                        const realIdx = tabs.indexOf(tab);
-                        return (
-                          <button
-                            key={realIdx}
-                            type="button"
-                            onClick={() => { setCurrentTab(realIdx); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                            className={`relative px-3.5 py-1.5 text-[11px] font-black transition-all duration-200 whitespace-nowrap flex items-center gap-1.5 rounded-xl ${
-                              currentTab === realIdx
-                                ? 'bg-white text-slate-900 shadow-sm scale-[1.02]'
-                                : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                          >
-                            <span className="text-sm leading-none">{tab.icon}</span>
-                            {tab.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-
-              {/* --- TAB 0 --- */}
-              {currentTab === 0 && (
-              <div className="space-y-6">
-              {/* TOP LEVEL CONTACT PANEL */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-                <div className="flex items-center justify-between gap-2 mb-5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-6 bg-amber-500 rounded-full"></div>
-                    <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                      1. Installer Identity & Primary Contacts
-                    </h3>
-                  </div>
-                  {identityConfirmed && (
-                    <button
-                      type="button"
-                      onClick={() => setIdentityConfirmed(false)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all cursor-pointer shrink-0"
-                    >
-                      <Edit className="w-3 h-3" />
-                      Edit
-                    </button>
-                  )}
-                </div>
-
-                {identityConfirmed ? (
-                  // LOCKED VIEW
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-in">
-                    {clientName && (
-                      <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Full Name</p>
-                        <p className="text-sm font-bold text-slate-800">{clientName}</p>
-                      </div>
-                    )}
-                    {clientPhone && (
-                      <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Phone Number</p>
-                        <p className="text-sm font-bold text-slate-800">{clientPhone}</p>
-                      </div>
-                    )}
-                    {companyName && (
-                      <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Solar Company</p>
-                        <p className="text-sm font-bold text-slate-800">{companyName}</p>
-                      </div>
-                    )}
-                    {clientEmail && (
-                      <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Email</p>
-                        <p className="text-sm font-bold text-slate-800">{clientEmail}</p>
-                      </div>
-                    )}
-                    {!clientName && !clientPhone && !companyName && !clientEmail && (
-                      <p className="text-xs text-slate-400 col-span-4 italic">No contact info entered yet.</p>
-                    )}
-                  </div>
-                ) : (
-                  // EDIT MODE
-                  <div className="space-y-4 animate-fade-in">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                          Your Full Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={clientName}
-                          onChange={(e) => setClientName(e.target.value)}
-                          placeholder="e.g., Rajesh Sharma"
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                          Phone Number <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="tel"
-                          required
-                          value={clientPhone}
-                          onChange={(e) => setClientPhone(e.target.value)}
-                          placeholder="e.g., +91 98765 43210"
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                          Solar Company Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={companyName}
-                          onChange={(e) => setCompanyName(e.target.value)}
-                          placeholder="e.g., Peak Solar Power"
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                          Email Address (Optional)
-                        </label>
-                        <input
-                          type="email"
-                          value={clientEmail}
-                          onChange={(e) => setClientEmail(e.target.value)}
-                          placeholder="e.g., info@peaksolar.in"
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!clientName.trim() || !clientPhone.trim() || !companyName.trim()) return;
-                          setIdentityConfirmed(true);
-                        }}
-                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm"
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        Confirm
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Operational Info Fields with confirm-to-view behavior */}
-                <div className="mt-5 pt-5 border-t border-slate-100 space-y-4">
-                  {opsInfoConfirmed ? (
-                    // VIEW ONLY mode
-                    <div className="space-y-3 animate-fade-in">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Operational Overview</span>
-                        <button
-                          type="button"
-                          onClick={() => setOpsInfoConfirmed(false)}
-                          className="flex items-center gap-1 text-[11px] font-black text-slate-400 hover:text-indigo-600 transition"
-                        >
-                          <Edit className="w-3 h-3" /> Edit
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {liveProjectsCount && (
-                          <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Live Active Projects</p>
-                            <p className="text-sm font-bold text-slate-800">{liveProjectsCount}</p>
-                          </div>
-                        )}
-                        {totalProjectsCount && (
-                          <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Total Projects Till Date</p>
-                            <p className="text-sm font-bold text-slate-800">{totalProjectsCount}</p>
-                          </div>
-                        )}
-                        {softwaresUsed && (
-                          <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Softwares Used</p>
-                            <p className="text-sm font-bold text-slate-800">{softwaresUsed}</p>
-                          </div>
-                        )}
-                      </div>
-                      {sheetLinks.filter(l => l.trim()).length > 0 && (
-                        <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Google Sheet View Links</p>
-                          {sheetLinks.filter(l => l.trim()).map((link, i) => (
-                            <a key={i} href={link} target="_blank" rel="noopener noreferrer"
-                              className="block text-xs font-semibold text-indigo-600 hover:text-indigo-800 truncate underline decoration-indigo-200">
-                              {link}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    // EDIT mode
-                    <div className="space-y-4 animate-fade-in">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                            Live Active Projects <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="number"
-                            value={liveProjectsCount}
-                            onChange={(e) => setLiveProjectsCount(e.target.value)}
-                            placeholder="e.g. 42"
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                            Total Projects Till Date
-                          </label>
-                          <input
-                            type="number"
-                            value={totalProjectsCount}
-                            onChange={(e) => setTotalProjectsCount(e.target.value)}
-                            placeholder="e.g. 340"
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                            Softwares Currently Used
-                          </label>
-                          <input
-                            type="text"
-                            value={softwaresUsed}
-                            onChange={(e) => setSoftwaresUsed(e.target.value)}
-                            placeholder="e.g. Excel, Tally, WhatsApp"
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Google Sheet Links - dynamic add/remove */}
-                      <div className="space-y-2">
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                          Google Sheet View Link(s)
-                          <span className="ml-1 text-[10px] font-semibold text-slate-400 normal-case">(paste one or more view-only links)</span>
-                        </label>
-                        {sheetLinks.map((link, i) => (
-                          <div key={i} className="flex gap-2">
-                            <input
-                              type="url"
-                              value={link}
-                              onChange={(e) => {
-                                const updated = [...sheetLinks];
-                                updated[i] = e.target.value;
-                                setSheetLinks(updated);
-                              }}
-                              placeholder={`Sheet link ${i + 1} - e.g. https://docs.google.com/spreadsheets/...`}
-                              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
-                            />
-                            {sheetLinks.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setSheetLinks(prev => prev.filter((_, idx) => idx !== i))}
-                                className="px-2 py-2 border border-rose-200 hover:bg-rose-50 text-rose-500 rounded-xl transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setSheetLinks(prev => [...prev, ''])}
-                          className="text-[11px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition"
-                        >
-                          <span className="text-base leading-none">+</span> Add another sheet link
-                        </button>
-                      </div>
-
-                      {/* Confirm button */}
-                      <div className="flex justify-end pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!liveProjectsCount.trim()) return;
-                            setOpsInfoConfirmed(true);
-                          }}
-                          className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm"
-                        >
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          Confirm
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Admin Backend Credentials - gated by admin dashboard */}
-                {adminShowCredentials && (
-                <div className="mt-4 pt-4 border-t border-slate-100">
-                  <div className="bg-slate-900 text-white rounded-2xl p-5 space-y-4 border border-slate-800 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
-                    <div className="flex items-start gap-3">
-                      <Key className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                      <div className="space-y-1">
-                        <span className="text-sm font-bold text-amber-300 block">Create Admin Backend Credentials</span>
-                        <span className="text-xs text-slate-400 block leading-relaxed">
-                          Kindly provide a new email address and master password. Developers will use these to host, bootstrap, and secure your database backend. This will also serve as your master admin account.
-                        </span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          New CRM Admin Email <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="email"
-                          value={backendEmail}
-                          onChange={(e) => setBackendEmail(e.target.value)}
-                          placeholder="e.g., admin@peaksolar.in"
-                          className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs focus:border-amber-400 outline-none transition font-medium text-white placeholder-slate-600"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          New Master Password <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={backendPassword}
-                          onChange={(e) => setBackendPassword(e.target.value)}
-                          placeholder="Create a secure password..."
-                          className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs focus:border-amber-400 outline-none transition font-medium text-white placeholder-slate-600"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                )}
-
-                {/* Two Key Product Questions + Project Type + Finance Tags */}
-                <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
-                  {/* Project Type - gated by admin */}
-                  {adminShowProjectTypes && (
-                  <div className="space-y-2">
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      Project Type(s) You Handle
-                      <span className="ml-1 text-[10px] font-semibold text-slate-400 normal-case">(select all that apply)</span>
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {['Residential', 'Commercial', 'Industrial', 'Agricultural', 'Government / PSU', 'Hybrid / Off-grid'].map(type => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setProjectType(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type])}
-                          className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
-                            projectType.includes(type)
-                              ? 'bg-slate-900 text-white border-slate-900'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  )}
-                  {/* Q5: Other features / workflow issues */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      Any other features or workflow issues to address?
-                    </label>
-                    <textarea
-                      value={extraFeatureNotes}
-                      onChange={(e) => setExtraFeatureNotes(e.target.value)}
-                      placeholder="e.g. We need automatic follow-up reminders, site photo uploads, or WhatsApp alerts for overdue payments..."
-                      rows={2}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-amber-500 outline-none transition font-medium resize-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Pipeline Stages + Financial Stage Quick-View Tags */}
-                {(customStages.length > 0 || stagesStatus === 'dk' || financialsStatus !== 'configured') && (
-                  <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap gap-2 items-center">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Pipeline:</span>
-                    {stagesStatus === 'dk' ? (
-                      <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-black">
-                        Skip / Expert-defined
-                      </span>
-                    ) : customStages.length === 0 ? (
-                      <span className="text-[10px] bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full font-semibold">
-                        No stages added yet
-                      </span>
-                    ) : (
-                      customStages.map((stage, i) => (
-                        <span key={i} className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-semibold truncate max-w-[120px]" title={stage}>
-                          {stage}
-                        </span>
-                      ))
-                    )}
-                    <span className="ml-3 text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Financial:</span>
-                    {financialsStatus === 'configured' ? (
-                      <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-black">
-                        {includeFinancialStage ? financialStageName || 'Financial Stage' : 'No Financial Stage'}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-full font-semibold">
-                        Skipped
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-
-              {/* BOTTOM NAV - Prev / Next */}
-              <div className="flex items-center justify-between pt-2 pb-1">
-                <button
-                  type="button"
-                  onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
-                >
-                  ← Prev
-                </button>
-                <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 7`}</span>
-                {currentTab < 6 ? (
-                  <button
-                    type="button"
-                    onClick={() => { setCurrentTab(prev => Math.min(6, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Next →
-                  </button>
-                ) : (
-                  <span />
-                )}
-              </div>
-
-              </div>
-              )}
-
-              {/* --- TAB 1 --- */}
-              {currentTab === 1 && (
-              <div className="space-y-6">
-              {/* SECTION: HOSTING, SCALING & OPERATIONAL SECURITY PROFILE */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-                <div className="flex items-center gap-2 pb-4 border-b border-slate-100">
-                  <Globe className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                    2. Hosting, Scaling & Operational Security Profile
-                  </h3>
-                </div>
-
-                {/* 1) Website and CRM Hosting URL - gated by admin */}
-                {adminShowWebsite && (
-                <div className="space-y-4">
-                  {websiteConfirmed ? (
-                    <div className="py-2 px-3.5 rounded-xl border border-emerald-200/80 bg-emerald-50/15 hover:bg-emerald-50/40 transition-all flex items-center justify-between gap-3 text-xs shadow-3xs">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-1.5 min-w-0">
-                          <span className="font-extrabold text-slate-800">
-                            Hosting Configuration:
-                          </span>
-                          <span className="font-semibold text-slate-600 truncate">
-                            {hasWebsite === true ? `Domain (${websiteAddress})` : 'Cloud Hosting (No Existing Website)'}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setWebsiteConfirmed(false)}
-                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-lg transition-all flex items-center gap-1 shrink-0"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                        <span className="text-[11px] font-black text-slate-500 hover:text-indigo-700">Edit</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-4 sm:p-5">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div>
-                            <span className="text-sm font-bold text-slate-900 block">Do you have an active company website address?</span>
-                            <span className="text-xs text-slate-500 mt-0.5 block">This domain configuration will be used to host your custom CRM.</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setHasWebsite(true);
-                                setWebsiteConfirmed(false);
-                              }}
-                              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${
-                                hasWebsite === true
-                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                              }`}
-                            >
-                              Yes, I have a website
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setHasWebsite(false);
-                                setWebsiteAddress('');
-                              }}
-                              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${
-                                hasWebsite === false
-                                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
-                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                              }`}
-                            >
-                              No, configure cloud hosting
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {hasWebsite === true && (
-                        <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 sm:p-5 space-y-2 animate-fade-in">
-                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                            Enter Website Address (URL) <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="url"
-                            value={websiteAddress}
-                            onChange={(e) => setWebsiteAddress(e.target.value)}
-                            placeholder="e.g., https://www.peaksolar.in"
-                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                          />
-                          <p className="text-[11px] text-slate-400 font-medium font-mono">
-                            🔗 Landing origin for binding custom dashboard sub-domains.
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="pt-2 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (hasWebsite === true && !websiteAddress.trim()) {
-                              setSaveFeedback('Please enter your website URL address first!');
-                              setTimeout(() => setSaveFeedback(''), 2500);
-                              return;
-                            }
-                            if (hasWebsite === null) {
-                              setSaveFeedback('Please choose a website option first!');
-                              setTimeout(() => setSaveFeedback(''), 2500);
-                              return;
-                            }
-                            setWebsiteConfirmed(true);
-                            setSaveFeedback('Website hosting selection confirmed!');
-                            setTimeout(() => setSaveFeedback(''), 2500);
-                          }}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                        >
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          Confirm
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                )}
-
-                {/* 1.5) Customer Reference Number (CRN) & Project ID Tracking Model */}
-                <div className="space-y-4">
-                  {crnConfirmed ? (
-                    <div className="py-2.5 px-3.5 sm:px-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 hover:bg-emerald-50/40 transition-all animate-fade-in flex items-center justify-between gap-3 text-xs shadow-3xs">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-1.5 min-w-0">
-                          <span className="font-extrabold text-slate-800">
-                            Tracking:
-                          </span>
-                          <span className="font-semibold text-slate-600 truncate">
-                            {crnTrackingType === 'skipped' ? (
-                              'Skipped (No CRN or Project ID tracking)'
-                            ) : (
-                              `Auto-increment tracker [${
-                                crnScope === 'crn'
-                                  ? 'CRN Only'
-                                  : crnScope === 'project'
-                                  ? 'Project ID Only'
-                                  : 'Both CRN & Project ID'
-                              }] with prefix "${crnPrefix}"`
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setCrnConfirmed(false)}
-                        className="p-1 px-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer"
-                        title="Edit CRN setup"
-                      >
-                        <Edit className="w-3.5 h-3.5 text-slate-500" />
-                        <span className="text-[11px] font-black text-slate-500 hover:text-indigo-700">Edit</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-slate-50 border border-slate-200/85 rounded-2xl p-5 sm:p-6 space-y-5 animate-fade-in">
-                      <div className="space-y-1">
-                        <span className="text-sm font-bold text-slate-950 block">
-                          Configure Customer Reference Number (CRN) & Project ID Tracking
-                        </span>
-                        <span className="text-xs text-slate-500 block leading-relaxed">
-                          Specify how your CRM should automatically assign and track individual client reference codes or Project IDs.
-                        </span>
-                      </div>
-                      
-                      {/* What would you like to track choice block */}
-                      <div className="space-y-2 pt-1">
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                          Select What to Track <span className="text-red-500">*</span>
-                        </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                          <button
-                            type="button"
-                            onClick={() => setCrnScope('crn')}
-                            className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                              crnScope === 'crn'
-                                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
-                            }`}
-                          >
-                            <span className="block text-xs font-black">🔢 CRN Only</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCrnScope('project')}
-                            className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                              crnScope === 'project'
-                                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
-                            }`}
-                          >
-                            <span className="block text-xs font-black">📁 Project ID Only</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCrnScope('both')}
-                            className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                              crnScope === 'both'
-                                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
-                            }`}
-                          >
-                            <span className="block text-xs font-black">⚡ Both CRN & Project ID</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Sequence Prefix configuration block */}
-                      <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-2.5">
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                          Custom Sequence Prefix <span className="text-red-500">*</span>
-                        </label>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <input
-                            type="text"
-                            value={crnPrefix}
-                            onChange={(e) => setCrnPrefix(e.target.value)}
-                            placeholder="e.g., CRN-2026-"
-                            className="w-full sm:max-w-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                          />
-                          <div className="flex-1 bg-slate-50 rounded-lg border border-slate-200 p-2.5 flex items-center text-[10px] text-slate-500 font-mono">
-                            💡 Sample code output: <strong className="text-slate-800 ml-1.5 font-bold">{crnPrefix}001</strong>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Unified Action Block for CRN Setup */}
-                      <div className="pt-3 border-t border-slate-200/60 flex flex-col sm:flex-row gap-2 justify-end items-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCrnTrackingType('skipped');
-                            setCrnConfirmed(true);
-                            setSaveFeedback('Skipped CRN & Project ID tracking.');
-                            setTimeout(() => setSaveFeedback(''), 2500);
-                          }}
-                          className="w-full sm:w-auto px-3.5 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                          Default
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!crnPrefix.trim()) {
-                              setSaveFeedback('Please enter a custom sequence prefix!');
-                              setTimeout(() => setSaveFeedback(''), 2500);
-                              return;
-                            }
-                            setCrnTrackingType('default');
-                            setCrnConfirmed(true);
-                            setSaveFeedback('Tracking configuration confirmed!');
-                            setTimeout(() => setSaveFeedback(''), 2500);
-                          }}
-                          className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
-                        >
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          Confirm Tracking Setup
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2) & 4) Operational Scaling parameters */}
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-
-                  {staffConfirmed ? (
-                    <div className="bg-emerald-50/20 border border-emerald-200 rounded-2xl p-4 sm:p-5 space-y-3 relative overflow-hidden animate-fade-in shadow-3xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Staff Users Confirmed</span>
-                            <span className="text-xs font-black text-slate-800 truncate">
-                              Total Users: {userCount || 'Not Specified'}
-                            </span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setStaffConfirmed(false)}
-                          className="px-2.5 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all flex items-center gap-1 cursor-pointer shrink-0"
-                        >
-                          <Edit className="w-3 h-3 text-indigo-600" />
-                          Edit
-                        </button>
-                      </div>
-                      
-                      {(adminUserCount || salesUserCount || financeUserCount) && (
-                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-emerald-100 text-[11px] font-bold">
-                          {adminUserCount && <div className="text-red-700 bg-red-50/60 p-1.5 rounded-lg border border-red-100/50 text-center truncate">Admin: {adminUserCount}</div>}
-                          {salesUserCount && <div className="text-orange-700 bg-orange-50/60 p-1.5 rounded-lg border border-orange-100/50 text-center truncate">Sales: {salesUserCount}</div>}
-                          {financeUserCount && <div className="text-teal-700 bg-teal-50/60 p-1.5 rounded-lg border border-teal-100/50 text-center truncate">Finance: {financeUserCount}</div>}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-3 animate-fade-in sm:col-span-2">
-                       <div className="flex items-center gap-3">
-                         <label className="text-xs font-bold text-slate-700 uppercase tracking-wider shrink-0">Staff Count <span className="text-red-500">*</span></label>
-                         <input
-                           type="text"
-                           required
-                           value={userCount}
-                           onChange={(e) => setUserCount(e.target.value)}
-                           placeholder="e.g., 12 total"
-                           className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                         />
-                       </div>
-                       
-                      {/* Role access breakout counts */}
-                      <div className="mt-3 pt-3 border-t border-slate-200/80 space-y-3">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Access Seats Breakout (Optional):
-                        </p>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="space-y-1">
-                            <label className="block text-[9px] font-bold text-red-600 uppercase tracking-wider">
-                              Admin Seats
-                            </label>
-                            <input
-                              type="text"
-                              value={adminUserCount}
-                              onChange={(e) => setAdminUserCount(e.target.value)}
-                              placeholder="e.g., 2"
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-[9px] font-bold text-orange-600 uppercase tracking-wider">
-                              Sales Seats
-                            </label>
-                            <input
-                              type="text"
-                              value={salesUserCount}
-                              onChange={(e) => setSalesUserCount(e.target.value)}
-                              placeholder="e.g., 8"
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-[9px] font-bold text-teal-600 uppercase tracking-wider">
-                              Finance Seats
-                            </label>
-                            <input
-                              type="text"
-                              value={financeUserCount}
-                              onChange={(e) => setFinanceUserCount(e.target.value)}
-                              placeholder="e.g., 2"
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 mt-4 mb-2">
-                        <input
-                          type="checkbox"
-                          id="confirmStaffCheckbox"
-                          checked={staffCheckboxConfirmed}
-                          onChange={(e) => setStaffCheckboxConfirmed(e.target.checked)}
-                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
-                        />
-                        <label htmlFor="confirmStaffCheckbox" className="text-xs font-bold text-slate-700 cursor-pointer">
-                          I confirm these staff options are correct
-                        </label>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={!staffCheckboxConfirmed}
-                        onClick={() => {
-                          if (!userCount.trim()) {
-                            setSaveFeedback('Please enter the number of staff users first!');
-                            setTimeout(() => setSaveFeedback(''), 2500);
-                            return;
-                          }
-                          setStaffConfirmed(true);
-                          setSaveFeedback('Staff configuration confirmed & locked!');
-                          setTimeout(() => setSaveFeedback(''), 2500);
-                        }}
-                        className={`w-full px-4 py-2 font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs ${
-                          staffCheckboxConfirmed 
-                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer active:scale-98' 
-                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        }`}
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        Confirm
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* 5) Access Control / Levels of Logins */}
-                <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <span className="text-xs font-black text-slate-800 uppercase tracking-widest block">System Security & Login Levels Hierarchy</span>
-                      <span className="text-[11px] text-slate-500">Define role permissions and access hierarchies for your CRM system:</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowSecurityDetails(!showSecurityDetails)}
-                      className="px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 text-slate-700 transition flex items-center gap-1.5"
-                    >
-                      {showSecurityDetails ? (
-                        <>
-                          <EyeOff className="w-3.5 h-3.5" />
-                          Hide Details
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="w-3.5 h-3.5" />
-                          View Details
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {showSecurityDetails && (
-                    <div className="space-y-5 animate-fade-in">
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {securityLevels.map((level, index) => (
-                      <div key={level.id} className="bg-white border border-slate-200/70 rounded-xl p-4 space-y-2.5 shadow-2xs relative flex flex-col justify-between">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`w-2.5 h-2.5 rounded-full ${level.id === 'admin' ? 'bg-red-500' : level.id === 'sales' ? 'bg-orange-500' : level.id === 'finance' ? 'bg-teal-500' : 'bg-indigo-500'}`}></span>
-                              <span className="text-xs font-extrabold text-slate-800 uppercase">{index + 1}. {level.name}</span>
-                            </div>
-                            {level.isCustom && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSecurityLevels(prev => prev.filter(l => l.id !== level.id));
-                                  setSaveFeedback(`Removed custom role: ${level.name}`);
-                                  setTimeout(() => setSaveFeedback(''), 2500);
-                                }}
-                                className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition"
-                                title="Delete Custom Role"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                            {level.description}
-                          </p>
-                        </div>
-
-                        {level.id === 'finance' && (
-                          <div className="pt-2 border-t border-slate-100">
-                            <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">
-                              Should Finance view other data?
-                            </label>
-                            <div className="grid grid-cols-2 gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                              <button
-                                type="button"
-                                onClick={() => setFinancialRoleViewPermission('all')}
-                                className={`py-1 text-[10px] font-bold rounded transition ${
-                                  financialRoleViewPermission === 'all'
-                                    ? 'bg-indigo-600 text-white shadow-3xs'
-                                    : 'text-slate-600 hover:bg-slate-100'
-                                }`}
-                              >
-                                View All
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setFinancialRoleViewPermission('none')}
-                                className={`py-1 text-[10px] font-bold rounded transition ${
-                                  financialRoleViewPermission === 'none'
-                                    ? 'bg-slate-800 text-white shadow-3xs'
-                                    : 'text-slate-600 hover:bg-slate-100'
-                                }`}
-                              >
-                                View None
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Add option to add more levels */}
-                  <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3">
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider block">
-                      + Add Custom Access Level / Security Role
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Role/Level Name
-                        </label>
-                        <input
-                          type="text"
-                          value={newLevelName}
-                          onChange={(e) => setNewLevelName(e.target.value)}
-                          placeholder="e.g. Site Surveyor, Technical Auditor"
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Short Description of Permissions
-                        </label>
-                        <input
-                          type="text"
-                          value={newLevelDesc}
-                          onChange={(e) => setNewLevelDesc(e.target.value)}
-                          placeholder="e.g. Can view site specs and upload field measurements only."
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!newLevelName.trim() || !newLevelDesc.trim()) {
-                            alert('Please enter both role name and description.');
-                            return;
-                          }
-                          const newRole = {
-                            id: `custom_${Date.now()}`,
-                            name: newLevelName.trim(),
-                            description: newLevelDesc.trim(),
-                            color: 'bg-indigo-500 text-white',
-                            isCustom: true
-                          };
-                          setSecurityLevels(prev => [...prev, newRole]);
-                          setNewLevelName('');
-                          setNewLevelDesc('');
-                          setSaveFeedback(`Created custom role: ${newRole.name}`);
-                          setTimeout(() => setSaveFeedback(''), 2500);
-                        }}
-                        className="text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add Security Level
-                      </button>
-                    </div>
-                  </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-
-              {/* BOTTOM NAV - Prev / Next */}
-              <div className="flex items-center justify-between pt-2 pb-1">
-                <button
-                  type="button"
-                  onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
-                >
-                  ← Prev
-                </button>
-                <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 7`}</span>
-                {currentTab < 6 ? (
-                  <button
-                    type="button"
-                    onClick={() => { setCurrentTab(prev => Math.min(6, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Next →
-                  </button>
-                ) : (
-                  <span />
-                )}
-              </div>
-
-              </div>
-              )}
-
-              {/* --- TAB 2 --- */}
-              {currentTab === 2 && (
-              <div className="space-y-6">
-              {/* SECTION: WORKFLOW PIPELINE STAGES - No Preloaded Options */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-                <div className="pb-4 border-b border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-5 h-5 text-amber-600" />
-                      <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                        4. Project Workflow Pipeline (3 to 15 milestones)
-                      </h3>
-                    </div>
-                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
-                      {customStages.length} Stages Configured
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                    Kindly enter the physical or administrative stages of your installation. To make your CRM lightweight, there are **no preloaded options** - you either write your own exact sequence, skip tracking, or load a demo/suggested structure.
+              {/* Guide Info Card */}
+              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden border border-slate-800">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="relative z-10 max-w-4xl">
+                  <span className="bg-amber-400/20 text-amber-300 text-[10.5px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-amber-400/20">
+                    Dynamic Specification Tool
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-black mt-3 tracking-tight leading-tight">
+                    Design Your Dream Solar CRM Blueprint
+                  </h2>
+                  <p className="mt-2.5 text-slate-300 text-sm sm:text-base leading-relaxed">
+                    We design custom operational CRMs specifically optimized for Solar Installers. Review this form line-by-line:
+                    <strong> Approve (Keep)</strong> modules that matter to your business, <strong>Delete (Remove)</strong> the ones you don't use, and add your own custom stages or variables.
                   </p>
                 </div>
+              </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStagesStatus('configured');
-                      setCustomStages([]);
-                    }}
-                    className={`flex-1 px-4 py-3 rounded-2xl text-xs font-bold border transition text-center ${
-                      stagesStatus === 'configured'
-                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    🚀 Enter My Own Workflow Sequence
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStagesStatus('dk');
-                      setCustomStages([]);
-                    }}
-                    className={`flex-1 px-4 py-3 rounded-2xl text-xs font-bold border transition text-center ${
-                      stagesStatus === 'dk'
-                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    🤷 I Don't Know / Consultation Needed
-                  </button>
+              {/* Error notifications */}
+              {formErrors.length > 0 && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-2xl flex items-start gap-3 shadow-xs">
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-red-800">Please correct the following errors before submitting:</h4>
+                    <ul className="list-disc list-inside text-xs text-red-700 mt-1 space-y-1">
+                      {formErrors.map((err, idx) => (
+                        <li key={idx} className="font-semibold">{err}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
+              )}
 
+              {/* Main Form */}
+              <form onSubmit={handleSubmitForm} className="space-y-8">
 
-                {stagesStatus === 'configured' && (
-                  <div className="space-y-4 pt-2">
-                    
-                    {/* Add Stage Input Box */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
-                      <label className="block text-xs font-bold text-slate-700 uppercase">
-                        Add Workflow Stage Sequence (comma separated)
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={newStageInput}
-                          onChange={(e) => setNewStageInput(e.target.value)}
-                          placeholder="e.g., Feasibility Clearance, Cable Laying, Net Meter installation"
-                          className="flex-1 px-4 py-2.5 border border-slate-200 bg-white rounded-xl text-xs focus:border-amber-500 outline-none transition font-medium text-slate-900"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddStage();
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddStage}
-                          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Add Stages
-                        </button>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[10px] text-slate-400 font-semibold">
-                          Use commas to add multiple stages at once. Must be between 3 and 15 stages.
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setFormatStagesAsNumbers(prev => !prev)}
-                          className="text-[10px] font-bold text-indigo-600 hover:underline"
-                        >
-                          {formatStagesAsNumbers ? 'Plain List' : 'Numbered List'}
-                        </button>
+                {/* TAB NAVIGATION - SLIDING PILL */}
+                {(() => {
+                  const tabs: { label: string; icon: string; hidden?: boolean }[] = [
+                    { label: 'Profile', icon: '👤' },
+                    { label: 'Security', icon: '🔒' },
+                    { label: 'Pipeline', icon: '🚀' },
+                    { label: 'Customers', icon: '🧑‍💼' },
+                    { label: 'Projects', icon: '🏗️' },
+                    { label: 'Company', icon: '🏢' },
+                    { label: 'Finance', icon: '💰' },
+                    { label: 'Submit', icon: '✅' },
+                  ];
+                  const visibleTabs = tabs.filter(t => !t.hidden);
+                  return (
+                    <div className="sticky top-0 z-20 -mx-6 sm:-mx-8 px-3 sm:px-4 py-2 bg-white/95 backdrop-blur-sm border-b border-slate-200/80 shadow-sm mb-4 rounded-t-3xl overflow-x-auto">
+                      <div className="flex gap-1 min-w-max p-1 bg-slate-100 rounded-2xl w-fit">
+                        {visibleTabs.map((tab, i) => {
+                          const realIdx = tabs.indexOf(tab);
+                          return (
+                            <button
+                              key={realIdx}
+                              type="button"
+                              onClick={() => { setCurrentTab(realIdx); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                              className={`relative px-3.5 py-1.5 text-[11px] font-black transition-all duration-200 whitespace-nowrap flex items-center gap-1.5 rounded-xl ${currentTab === realIdx
+                                  ? 'bg-white text-slate-900 shadow-sm scale-[1.02]'
+                                  : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                              <span className="text-sm leading-none">{tab.icon}</span>
+                              {tab.label}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
+                  );
+                })()}
 
-{/* Current Custom Stages List */}
-                    {customStages.length > 0 ? (
-                      <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
-                        <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                          Active Installation Progression Checklist
+
+                {/* --- TAB 0 --- */}
+                {currentTab === 0 && (
+                  <div className="space-y-6">
+                    {/* COMBINED INSTALLER IDENTITY CARD */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
+                      <div className="flex items-center justify-between gap-2 mb-5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-6 bg-amber-500 rounded-full"></div>
+                          <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                            1. Installer Identity & Operational Profile
+                          </h3>
                         </div>
-                        <div className="divide-y divide-slate-100">
-                          {customStages.map((stage, index) => (
-                            <div key={index} className="px-4 py-3 flex items-center justify-between gap-4 bg-white hover:bg-slate-50/50 transition">
-                              <div className="flex items-center gap-3">
-                                <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-xs font-black flex items-center justify-center">
-                                  {formatStagesAsNumbers ? index + 1 : '•'}
-                                </span>
-                                <span className="text-xs font-bold text-slate-900">{stage}</span>
+                        {identityConfirmed && (
+                          <button
+                            type="button"
+                            onClick={() => setIdentityConfirmed(false)}
+                            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all cursor-pointer shrink-0"
+                          >
+                            <Edit className="w-3 h-3" />
+                            Edit Section
+                          </button>
+                        )}
+                      </div>
+
+                      {identityConfirmed ? (
+                        // LOCKED VIEW: COMBINED FOR ALL FIELDS
+                        <div className="space-y-4 animate-fade-in">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Your Full Name</p>
+                              <p className="text-sm font-bold text-slate-800">{clientName || 'Not Provided'}</p>
+                            </div>
+                            <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Phone Number</p>
+                              <p className="text-sm font-bold text-slate-800">{clientPhone || 'Not Provided'}</p>
+                            </div>
+                            <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Solar Company</p>
+                              <p className="text-sm font-bold text-slate-800">{companyName || 'Not Provided'}</p>
+                            </div>
+                            <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Email Address</p>
+                              <p className="text-sm font-bold text-slate-800">{clientEmail || 'Not Provided'}</p>
+                            </div>
+
+                            <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Live Active Projects</p>
+                              <p className="text-sm font-bold text-slate-800">{liveProjectsCount || 'Not Provided'}</p>
+                            </div>
+                            <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Total Projects Till Date</p>
+                              <p className="text-sm font-bold text-slate-800">{totalProjectsCount || 'Not Provided'}</p>
+                            </div>
+                            <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Softwares Used</p>
+                              <p className="text-sm font-bold text-slate-800">{softwaresUsed || 'Not Provided'}</p>
+                            </div>
+                          </div>
+
+                          {sheetLinks.filter(l => l.trim()).length > 0 && (
+                            <div className="px-3 py-2.5 bg-emerald-50/40 border border-emerald-200/70 rounded-xl space-y-1">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Google Sheet View Links</p>
+                              {sheetLinks.filter(l => l.trim()).map((link, i) => (
+                                <a key={i} href={link} target="_blank" rel="noopener noreferrer"
+                                  className="block text-xs font-semibold text-indigo-600 hover:text-indigo-850 truncate underline decoration-indigo-200">
+                                  {link}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        // EDIT MODE: BOTH PANELS SHOWN IN EDITTING MODE
+                        <div className="space-y-6 animate-fade-in">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                Your Full Name <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={clientName}
+                                onChange={(e) => setClientName(e.target.value)}
+                                placeholder="e.g., Rajesh Sharma"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                Phone Number <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="tel"
+                                required
+                                value={clientPhone}
+                                onChange={(e) => setClientPhone(e.target.value)}
+                                placeholder="e.g., +91 98765 43210"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                Solar Company Name <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                placeholder="e.g., Peak Solar Power"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                Email Address (Optional)
+                              </label>
+                              <input
+                                type="email"
+                                value={clientEmail}
+                                onChange={(e) => setClientEmail(e.target.value)}
+                                placeholder="e.g., info@peaksolar.in"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="pt-4 border-t border-slate-100 space-y-4">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Operational Overview Details</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                  Live Active Projects <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  value={liveProjectsCount}
+                                  onChange={(e) => setLiveProjectsCount(e.target.value)}
+                                  placeholder="e.g. 42"
+                                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                                />
                               </div>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleMoveStage(index, -1)}
-                                  className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100 transition"
-                                  aria-label="Move stage up"
-                                >
-                                  <ChevronUp className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleMoveStage(index, 1)}
-                                  className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100 transition"
-                                  aria-label="Move stage down"
-                                >
-                                  <ChevronDown className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveStage(index)}
-                                  className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                  Total Projects Till Date
+                                </label>
+                                <input
+                                  type="number"
+                                  value={totalProjectsCount}
+                                  onChange={(e) => setTotalProjectsCount(e.target.value)}
+                                  placeholder="e.g. 340"
+                                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                  Softwares Currently Used
+                                </label>
+                                <input
+                                  type="text"
+                                  value={softwaresUsed}
+                                  onChange={(e) => setSoftwaresUsed(e.target.value)}
+                                  placeholder="e.g. Excel, Tally, WhatsApp"
+                                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                                />
                               </div>
                             </div>
-                          ))}
+
+                            {/* Google Sheet Links - dynamic add/remove */}
+                            <div className="space-y-2">
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                Google Sheet View Link(s)
+                                <span className="ml-1 text-[10px] font-semibold text-slate-400 normal-case">(paste one or more view-only links)</span>
+                              </label>
+                              {sheetLinks.map((link, i) => (
+                                <div key={i} className="flex gap-2">
+                                  <input
+                                    type="url"
+                                    value={link}
+                                    onChange={(e) => {
+                                      const updated = [...sheetLinks];
+                                      updated[i] = e.target.value;
+                                      setSheetLinks(updated);
+                                    }}
+                                    placeholder={`Sheet link ${i + 1} - e.g. https://docs.google.com/spreadsheets/...`}
+                                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition font-medium"
+                                  />
+                                  {sheetLinks.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSheetLinks(prev => prev.filter((_, idx) => idx !== i))}
+                                      className="px-2 py-2 border border-rose-200 hover:bg-rose-50 text-rose-500 rounded-xl transition cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => setSheetLinks(prev => [...prev, ''])}
+                                className="text-[11px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition cursor-pointer"
+                              >
+                                <span className="text-base leading-none">+</span> Add another sheet link
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-2 border-t border-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!clientName.trim() || !clientPhone.trim() || !companyName.trim() || !liveProjectsCount.trim()) {
+                                  alert('Please fill out all required fields marked with * (Full Name, Phone, Company, Live Projects)');
+                                  return;
+                                }
+                                setIdentityConfirmed(true);
+                              }}
+                              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              Confirm & Lock
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-2xl">
-                        <p className="text-xs text-slate-500 font-semibold">Your stage progression checklist is currently empty.</p>
-                        <p className="text-[10px] text-slate-400 mt-1">Add your steps above, or click "Load Standard Demo Sequence" to populate reference points.</p>
+                      )}
+                    </div>
+
+                    {/* Admin Backend Credentials - gated by admin dashboard */}
+                    {adminShowCredentials && (
+                      <div className="mt-4 pt-4 border-t border-slate-100">
+                        <div className="bg-slate-900 text-white rounded-2xl p-5 space-y-4 border border-slate-800 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+                          <div className="flex items-start gap-3">
+                            <Key className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                              <span className="text-sm font-bold text-amber-300 block">Create Admin Backend Credentials</span>
+                              <span className="text-xs text-slate-400 block leading-relaxed">
+                                Kindly provide a new email address and master password. Developers will use these to host, bootstrap, and secure your database backend. This will also serve as your master admin account.
+                              </span>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                            <div className="space-y-1">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                New CRM Admin Email <span className="text-red-400">*</span>
+                              </label>
+                              <input
+                                type="email"
+                                value={backendEmail}
+                                onChange={(e) => setBackendEmail(e.target.value)}
+                                placeholder="e.g., admin@peaksolar.in"
+                                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs focus:border-amber-400 outline-none transition font-medium text-white placeholder-slate-600"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                New Master Password <span className="text-red-400">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={backendPassword}
+                                onChange={(e) => setBackendPassword(e.target.value)}
+                                placeholder="Create a secure password..."
+                                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs focus:border-amber-400 outline-none transition font-medium text-white placeholder-slate-600"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
 
+                    {/* Two Key Product Questions + Project Type + Finance Tags */}
+                    <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+                      {/* Project Type - gated by admin */}
+                      {adminShowProjectTypes && (
+                        <div className="space-y-2">
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                            Project Type(s) You Handle
+                            <span className="ml-1 text-[10px] font-semibold text-slate-400 normal-case">(select all that apply)</span>
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {['Residential', 'Commercial', 'Industrial', 'Agricultural', 'Government / PSU', 'Hybrid / Off-grid'].map(type => (
+                              <button
+                                key={type}
+                                type="button"
+                                onClick={() => setProjectType(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type])}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${projectType.includes(type)
+                                    ? 'bg-slate-900 text-white border-slate-900'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                  }`}
+                              >
+                                {type}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Q5: Other features / workflow issues */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                          Any other features or workflow issues to address?
+                        </label>
+                        <textarea
+                          value={extraFeatureNotes}
+                          onChange={(e) => setExtraFeatureNotes(e.target.value)}
+                          placeholder="e.g. We need automatic follow-up reminders, site photo uploads, or WhatsApp alerts for overdue payments..."
+                          rows={2}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-amber-500 outline-none transition font-medium resize-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Pipeline Stages + Financial Stage Quick-View Tags */}
+                    {(customStages.length > 0 || stagesStatus === 'dk' || financialsStatus !== 'configured') && (
+                      <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap gap-2 items-center">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Pipeline:</span>
+                        {stagesStatus === 'dk' ? (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-black">
+                            Skip / Expert-defined
+                          </span>
+                        ) : customStages.length === 0 ? (
+                          <span className="text-[10px] bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full font-semibold">
+                            No stages added yet
+                          </span>
+                        ) : (
+                          customStages.map((stage, i) => (
+                            <span key={i} className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-semibold truncate max-w-[120px]" title={stage}>
+                              {stage}
+                            </span>
+                          ))
+                        )}
+                        <span className="ml-3 text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Financial:</span>
+                        {financialsStatus === 'configured' ? (
+                          <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-black">
+                            {includeFinancialStage ? financialStageName || 'Financial Stage' : 'No Financial Stage'}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-full font-semibold">
+                            Skipped
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+
+                    {/* BOTTOM NAV - Prev / Next */}
+                    <div className="flex items-center justify-between pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 8`}</span>
+                      {currentTab < 7 ? (
+                        <button
+                          type="button"
+                          onClick={() => { setCurrentTab(prev => Math.min(7, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          Next →
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+
                   </div>
                 )}
-              </div>
+
+                {/* --- TAB 1 --- */}
+                {currentTab === 1 && (
+                  <div className="space-y-6">
+                    {/* SECTION: HOSTING, SCALING & OPERATIONAL SECURITY PROFILE */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+                      <div className="flex items-center gap-2 pb-4 border-b border-slate-100">
+                        <Globe className="w-5 h-5 text-indigo-600" />
+                        <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                          2. Hosting, Scaling & Operational Security Profile
+                        </h3>
+                      </div>
+
+                      {/* 1) Website and CRM Hosting URL - gated by admin */}
+                      {adminShowWebsite && (
+                        <div className="space-y-4">
+                          {websiteConfirmed ? (
+                            <div className="py-2 px-3.5 rounded-xl border border-emerald-200/80 bg-emerald-50/15 hover:bg-emerald-50/40 transition-all flex items-center justify-between gap-3 text-xs shadow-3xs">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-1.5 min-w-0">
+                                  <span className="font-extrabold text-slate-800">
+                                    Hosting Configuration:
+                                  </span>
+                                  <span className="font-semibold text-slate-600 truncate">
+                                    {hasWebsite === true ? `Domain (${websiteAddress})` : 'Cloud Hosting (No Existing Website)'}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setWebsiteConfirmed(false)}
+                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-lg transition-all flex items-center gap-1 shrink-0"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span className="text-[11px] font-black text-slate-500 hover:text-indigo-700">Edit</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-4 sm:p-5">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                  <div>
+                                    <span className="text-sm font-bold text-slate-900 block">Do you have an active company website address?</span>
+                                    <span className="text-xs text-slate-500 mt-0.5 block">This domain configuration will be used to host your custom CRM.</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setHasWebsite(true);
+                                        setWebsiteConfirmed(false);
+                                      }}
+                                      className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${hasWebsite === true
+                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                      Yes, I have a website
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setHasWebsite(false);
+                                        setWebsiteAddress('');
+                                      }}
+                                      className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${hasWebsite === false
+                                          ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                      No, configure cloud hosting
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {hasWebsite === true && (
+                                <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 sm:p-5 space-y-2 animate-fade-in">
+                                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    Enter Website Address (URL) <span className="text-red-500">*</span>
+                                  </label>
+                                  <input
+                                    type="url"
+                                    value={websiteAddress}
+                                    onChange={(e) => setWebsiteAddress(e.target.value)}
+                                    placeholder="e.g., https://www.peaksolar.in"
+                                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                                  />
+                                  <p className="text-[11px] text-slate-400 font-medium font-mono">
+                                    🔗 Landing origin for binding custom dashboard sub-domains.
+                                  </p>
+                                </div>
+                              )}
+
+                              <div className="pt-2 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (hasWebsite === true && !websiteAddress.trim()) {
+                                      setSaveFeedback('Please enter your website URL address first!');
+                                      setTimeout(() => setSaveFeedback(''), 2500);
+                                      return;
+                                    }
+                                    if (hasWebsite === null) {
+                                      setSaveFeedback('Please choose a website option first!');
+                                      setTimeout(() => setSaveFeedback(''), 2500);
+                                      return;
+                                    }
+                                    setWebsiteConfirmed(true);
+                                    setSaveFeedback('Website hosting selection confirmed!');
+                                    setTimeout(() => setSaveFeedback(''), 2500);
+                                  }}
+                                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  Confirm
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {/* 2) & 4) Operational Scaling parameters */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+                        {staffConfirmed ? (
+                          <div className="bg-emerald-50/20 border border-emerald-200 rounded-2xl p-4 sm:p-5 space-y-3 relative overflow-hidden animate-fade-in shadow-3xs">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Staff Users Confirmed</span>
+                                  <span className="text-xs font-black text-slate-800 truncate">
+                                    Total Users: {userCount || 'Not Specified'}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setStaffConfirmed(false)}
+                                className="px-2.5 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                              >
+                                <Edit className="w-3 h-3 text-indigo-600" />
+                                Edit
+                              </button>
+                            </div>
+
+                            {(adminUserCount || salesUserCount || financeUserCount) && (
+                              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-emerald-100 text-[11px] font-bold">
+                                {adminUserCount && <div className="text-red-700 bg-red-50/60 p-1.5 rounded-lg border border-red-100/50 text-center truncate">Admin: {adminUserCount}</div>}
+                                {salesUserCount && <div className="text-orange-700 bg-orange-50/60 p-1.5 rounded-lg border border-orange-100/50 text-center truncate">Sales: {salesUserCount}</div>}
+                                {financeUserCount && <div className="text-teal-700 bg-teal-50/60 p-1.5 rounded-lg border border-teal-100/50 text-center truncate">Finance: {financeUserCount}</div>}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-3 animate-fade-in sm:col-span-2">
+                            <div className="flex items-center gap-3">
+                              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider shrink-0">Staff Count <span className="text-red-500">*</span></label>
+                              <input
+                                type="text"
+                                required
+                                value={userCount}
+                                onChange={(e) => setUserCount(e.target.value)}
+                                placeholder="e.g., 12 total"
+                                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                              />
+                            </div>
+
+                            {/* Role access breakout counts */}
+                            <div className="mt-3 pt-3 border-t border-slate-200/80 space-y-3">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                Access Seats Breakout (Optional):
+                              </p>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-1">
+                                  <label className="block text-[9px] font-bold text-red-600 uppercase tracking-wider">
+                                    Admin Seats
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={adminUserCount}
+                                    onChange={(e) => setAdminUserCount(e.target.value)}
+                                    placeholder="e.g., 2"
+                                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-[9px] font-bold text-orange-600 uppercase tracking-wider">
+                                    Sales Seats
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={salesUserCount}
+                                    onChange={(e) => setSalesUserCount(e.target.value)}
+                                    placeholder="e.g., 8"
+                                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-[9px] font-bold text-teal-600 uppercase tracking-wider">
+                                    Finance Seats
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={financeUserCount}
+                                    onChange={(e) => setFinanceUserCount(e.target.value)}
+                                    placeholder="e.g., 2"
+                                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-4 mb-2">
+                              <input
+                                type="checkbox"
+                                id="confirmStaffCheckbox"
+                                checked={staffCheckboxConfirmed}
+                                onChange={(e) => setStaffCheckboxConfirmed(e.target.checked)}
+                                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                              />
+                              <label htmlFor="confirmStaffCheckbox" className="text-xs font-bold text-slate-700 cursor-pointer">
+                                I confirm these staff options are correct
+                              </label>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={!staffCheckboxConfirmed}
+                              onClick={() => {
+                                if (!userCount.trim()) {
+                                  setSaveFeedback('Please enter the number of staff users first!');
+                                  setTimeout(() => setSaveFeedback(''), 2500);
+                                  return;
+                                }
+                                setStaffConfirmed(true);
+                                setSaveFeedback('Staff configuration confirmed & locked!');
+                                setTimeout(() => setSaveFeedback(''), 2500);
+                              }}
+                              className={`w-full px-4 py-2 font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs ${staffCheckboxConfirmed
+                                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer active:scale-98'
+                                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                }`}
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              Confirm
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 5) Access Control / Levels of Logins */}
+                      <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <span className="text-xs font-black text-slate-800 uppercase tracking-widest block">System Security & Login Levels Hierarchy</span>
+                            <span className="text-[11px] text-slate-500">Define role permissions and access hierarchies for your CRM system:</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowSecurityDetails(!showSecurityDetails)}
+                            className="px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 text-slate-700 transition flex items-center gap-1.5"
+                          >
+                            {showSecurityDetails ? (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5" />
+                                Hide Details
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                View Details
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {showSecurityDetails && (
+                          <div className="space-y-5 animate-fade-in">
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {securityLevels.map((level, index) => (
+                                <div key={level.id} className="bg-white border border-slate-200/70 rounded-xl p-4 space-y-2.5 shadow-2xs relative flex flex-col justify-between">
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`w-2.5 h-2.5 rounded-full ${level.id === 'admin' ? 'bg-red-500' : level.id === 'sales' ? 'bg-orange-500' : level.id === 'finance' ? 'bg-teal-500' : 'bg-indigo-500'}`}></span>
+                                        <span className="text-xs font-extrabold text-slate-800 uppercase">{index + 1}. {level.name}</span>
+                                      </div>
+                                      {level.isCustom && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSecurityLevels(prev => prev.filter(l => l.id !== level.id));
+                                            setSaveFeedback(`Removed custom role: ${level.name}`);
+                                            setTimeout(() => setSaveFeedback(''), 2500);
+                                          }}
+                                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition"
+                                          title="Delete Custom Role"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                                      {level.description}
+                                    </p>
+                                  </div>
+
+                                  {level.id === 'finance' && (
+                                    <div className="pt-2 border-t border-slate-100">
+                                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                                        Should Finance view other data?
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                                        <button
+                                          type="button"
+                                          onClick={() => setFinancialRoleViewPermission('all')}
+                                          className={`py-1 text-[10px] font-bold rounded transition ${financialRoleViewPermission === 'all'
+                                              ? 'bg-indigo-600 text-white shadow-3xs'
+                                              : 'text-slate-600 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                          View All
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setFinancialRoleViewPermission('none')}
+                                          className={`py-1 text-[10px] font-bold rounded transition ${financialRoleViewPermission === 'none'
+                                              ? 'bg-slate-800 text-white shadow-3xs'
+                                              : 'text-slate-600 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                          View None
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Add option to add more levels */}
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3">
+                              <span className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                                + Add Custom Access Level / Security Role
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    Role/Level Name
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={newLevelName}
+                                    onChange={(e) => setNewLevelName(e.target.value)}
+                                    placeholder="e.g. Site Surveyor, Technical Auditor"
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    Short Description of Permissions
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={newLevelDesc}
+                                    onChange={(e) => setNewLevelDesc(e.target.value)}
+                                    placeholder="e.g. Can view site specs and upload field measurements only."
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!newLevelName.trim() || !newLevelDesc.trim()) {
+                                      alert('Please enter both role name and description.');
+                                      return;
+                                    }
+                                    const newRole = {
+                                      id: `custom_${Date.now()}`,
+                                      name: newLevelName.trim(),
+                                      description: newLevelDesc.trim(),
+                                      color: 'bg-indigo-500 text-white',
+                                      isCustom: true
+                                    };
+                                    setSecurityLevels(prev => [...prev, newRole]);
+                                    setNewLevelName('');
+                                    setNewLevelDesc('');
+                                    setSaveFeedback(`Created custom role: ${newRole.name}`);
+                                    setTimeout(() => setSaveFeedback(''), 2500);
+                                  }}
+                                  className="text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Add Security Level
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+
+                    {/* BOTTOM NAV - Prev / Next */}
+                    <div className="flex items-center justify-between pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 8`}</span>
+                      {currentTab < 7 ? (
+                        <button
+                          type="button"
+                          onClick={() => { setCurrentTab(prev => Math.min(7, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          Next →
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+
+                  </div>
+                )}
+
+                {/* --- TAB 2 --- */}
+                {currentTab === 2 && (
+                  <div className="space-y-6">
+                    {/* SECTION: WORKFLOW PIPELINE STAGES - No Preloaded Options */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+                      <div className="pb-4 border-b border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Layers className="w-5 h-5 text-amber-600" />
+                            <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                              4. Project Workflow Pipeline (min. 3 stages, unlimited)
+                            </h3>
+                          </div>
+                          <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+                            {customStages.length} Stages Configured
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                          Kindly enter the physical or administrative stages of your installation. To make your CRM lightweight, there are **no preloaded options** - you either write your own exact sequence, skip tracking, or load a demo/suggested structure. There is no upper limit on stages — add as many as your workflow needs.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStagesStatus('configured');
+                            setCustomStages([]);
+                          }}
+                          className={`flex-1 px-4 py-3 rounded-2xl text-xs font-bold border transition text-center ${stagesStatus === 'configured'
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                            }`}
+                        >
+                          🚀 Enter My Own Workflow Sequence
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStagesStatus('dk');
+                            setCustomStages([]);
+                          }}
+                          className={`flex-1 px-4 py-3 rounded-2xl text-xs font-bold border transition text-center ${stagesStatus === 'dk'
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                            }`}
+                        >
+                          🤷 I Don't Know / Consultation Needed
+                        </button>
+                      </div>
+
+
+                      {stagesStatus === 'configured' && (
+                        <div className="space-y-4 pt-2">
+
+                          {/* Add Stage Input Box */}
+                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
+                            <label className="block text-xs font-bold text-slate-700 uppercase">
+                              Add Workflow Stage Sequence (comma separated)
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={newStageInput}
+                                onChange={(e) => setNewStageInput(e.target.value)}
+                                placeholder="e.g., Feasibility Clearance, Cable Laying, Net Meter installation"
+                                className="flex-1 px-4 py-2.5 border border-slate-200 bg-white rounded-xl text-xs focus:border-amber-500 outline-none transition font-medium text-slate-900"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddStage();
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={handleAddStage}
+                                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                Add Stages
+                              </button>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[10px] text-slate-400 font-semibold">
+                                Use commas to add multiple stages at once. Minimum 3 stages required (unlimited max).
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setFormatStagesAsNumbers(prev => !prev)}
+                                className="text-[10px] font-bold text-indigo-600 hover:underline"
+                              >
+                                {formatStagesAsNumbers ? 'Plain List' : 'Numbered List'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Current Custom Stages List */}
+                          {customStages.length > 0 ? (
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                              <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                Active Installation Progression Checklist
+                              </div>
+                              <div className="divide-y divide-slate-100">
+                                {customStages.map((stage, index) => (
+                                  <div key={index} className="px-4 py-3 flex items-center justify-between gap-4 bg-white hover:bg-slate-50/50 transition">
+                                    <div className="flex items-center gap-3">
+                                      <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-xs font-black flex items-center justify-center">
+                                        {formatStagesAsNumbers ? index + 1 : '•'}
+                                      </span>
+                                      <span className="text-xs font-bold text-slate-900">{stage}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveStage(index, -1)}
+                                        className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100 transition"
+                                        aria-label="Move stage up"
+                                      >
+                                        <ChevronUp className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveStage(index, 1)}
+                                        className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100 transition"
+                                        aria-label="Move stage down"
+                                      >
+                                        <ChevronDown className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveStage(index)}
+                                        className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-2xl">
+                              <p className="text-xs text-slate-500 font-semibold">Your stage progression checklist is currently empty.</p>
+                              <p className="text-[10px] text-slate-400 mt-1">Add your steps above, or click "Load Standard Demo Sequence" to populate reference points.</p>
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+                    </div>
 
                     {/* Financial Stage toggle - right below the Add Workflow input */}
                     <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
@@ -2830,722 +2683,1220 @@ export default function App() {
                       </div>
                     )}
 
-                    
 
-              {/* BOTTOM NAV - Prev / Next */}
-              <div className="flex items-center justify-between pt-2 pb-1">
-                <button
-                  type="button"
-                  onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
-                >
-                  ← Prev
-                </button>
-                <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 7`}</span>
-                {currentTab < 6 ? (
-                  <button
-                    type="button"
-                    onClick={() => { setCurrentTab(prev => Math.min(6, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Next →
-                  </button>
-                ) : (
-                  <span />
-                )}
-              </div>
 
-              </div>
-              )}
-
-              {/* --- TAB 3 Customers --- */}
-              {currentTab === 3 && (
-              <div className="space-y-6">
-              {/* SECTION: CUSTOMERS */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-indigo-600" />
-                    <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                      2. Customer Registry Fields
-                    </h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setCustomerSectionSkipped(prev => !prev)}
-                    className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
-                      customerSectionSkipped
-                        ? 'bg-rose-100 text-rose-700 border-rose-200'
-                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {customerSectionSkipped ? '↩ Restore Section' : 'Skip Section'}
-                  </button>
-                </div>
-                {customerSectionSkipped && (
-                  <div className="text-center py-5 bg-slate-50 border border-slate-200 rounded-2xl">
-                    <p className="text-xs text-slate-500 font-semibold">Customer Registry section skipped.</p>
-                  </div>
-                )}
-                {!customerSectionSkipped && (<>
-
-                {/* Specialized Question: Branch Office */}
-                <div className="space-y-4">
-                  <div className="bg-amber-50/50 border border-amber-200/70 rounded-2xl p-4 sm:p-5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div>
-                        <span className="text-sm font-bold text-amber-950 block">Do you operate from more than 1 branch office?</span>
-                        <span className="text-xs text-amber-800/80 mt-0.5 block">If no, we will automatically clean up and remove the branch allocation tracking completely.</span>
-                      </div>
-                      <div className="flex gap-2">
+                    {/* BOTTOM NAV - Prev / Next */}
+                    <div className="flex items-center justify-between pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 8`}</span>
+                      {currentTab < 7 ? (
                         <button
                           type="button"
-                          onClick={() => handleBranchToggle(true)}
-                          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${
-                            hasMultipleBranches === true
-                              ? 'bg-amber-600 text-slate-950 border-amber-600 shadow-sm'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                          }`}
+                          onClick={() => { setCurrentTab(prev => Math.min(7, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
                         >
-                          Yes, track branches
+                          Next →
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleBranchToggle(false)}
-                          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${
-                            hasMultipleBranches === false
-                              ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          No, remove branch field
-                        </button>
-                      </div>
+                      ) : (
+                        <span />
+                      )}
                     </div>
+
                   </div>
+                )}
 
-                  {hasMultipleBranches === true && (
-                    <div className="bg-amber-55 border border-amber-200/50 rounded-2xl p-4 sm:p-5 space-y-3 animate-fade-in">
-                      <div>
-                        <span className="text-xs font-bold text-amber-950 uppercase tracking-wider block">Configure Your Branch Offices</span>
-                        <span className="text-[11px] text-amber-850">Add the values of different branches you have:</span>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={newBranchInput}
-                          onChange={(e) => setNewBranchInput(e.target.value)}
-                          placeholder="e.g., Delhi Branch, Bangalore Office"
-                          className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:border-amber-500 outline-none transition font-medium text-slate-900"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddBranch();
-                            }
-                          }}
-                        />
+                {/* --- TAB 3 Customers --- */}
+                {currentTab === 3 && (
+                  <div className="space-y-6">
+                    {/* SECTION: CUSTOMERS */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-5 h-5 text-indigo-600" />
+                          <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                            2. Customer Registry Fields
+                          </h3>
+                        </div>
                         <button
                           type="button"
-                          onClick={handleAddBranch}
-                          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0"
+                          onClick={() => setCustomerSectionSkipped(prev => !prev)}
+                          className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-xl border transition ${customerSectionSkipped
+                              ? 'bg-rose-100 text-rose-700 border-rose-200'
+                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                            }`}
                         >
-                          <Plus className="w-3.5 h-3.5" />
-                          Add Branch
+                          {customerSectionSkipped ? '↩ Restore Section' : 'Skip Section'}
                         </button>
                       </div>
+                      {customerSectionSkipped && (
+                        <div className="text-center py-5 bg-slate-50 border border-slate-200 rounded-2xl">
+                          <p className="text-xs text-slate-500 font-semibold">Customer Registry section skipped.</p>
+                        </div>
+                      )}
+                      {!customerSectionSkipped && (<>
 
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {branchList.map((branch, idx) => (
-                          <div
-                            key={idx}
-                            className="bg-white border border-slate-200 pl-3 pr-2 py-1 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-2"
-                          >
-                            <span>{branch}</span>
+                        {/* Customers Fields List */}
+                        <div className="space-y-3">
+                          {sections.find(s => s.id === 'customers')?.fields.map(field => renderFieldRow('customers', field))}
+                        </div>
+
+                        {/* Add Custom Field Button at the bottom */}
+                        {addingCustomFieldToSection !== 'customers' && (
+                          <div className="flex justify-start pt-1">
                             <button
                               type="button"
-                              onClick={() => handleRemoveBranch(branch)}
-                              className="text-slate-400 hover:text-red-600 p-0.5 rounded-full hover:bg-red-50 transition"
+                              onClick={() => setAddingCustomFieldToSection('customers')}
+                              className="text-xs font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer"
                             >
-                              <XCircle className="w-3.5 h-3.5" />
+                              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                              Add Custom Field
                             </button>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                        )}
 
-                {/* Customers Fields List */}
-                <div className="space-y-3">
-                  {sections.find(s => s.id === 'customers')?.fields.map(field => renderFieldRow('customers', field))}
-                </div>
+                        {/* Inline custom field addition panel */}
+                        {addingCustomFieldToSection === 'customers' && (
+                          <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-4 animate-fade-in">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Create Custom Customer Field</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                value={customFieldName}
+                                onChange={(e) => setCustomFieldName(e.target.value)}
+                                placeholder="Field Name (e.g., GSTIN Number)"
+                                className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition bg-white"
+                              />
+                              <input
+                                type="text"
+                                value={customFieldDesc}
+                                onChange={(e) => setCustomFieldDesc(e.target.value)}
+                                placeholder="Short description / purpose"
+                                className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition bg-white"
+                              />
+                            </div>
 
-                {/* Add Custom Field Button at the bottom */}
-                {addingCustomFieldToSection !== 'customers' && (
-                  <div className="flex justify-start pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setAddingCustomFieldToSection('customers')}
-                      className="text-xs font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      Add Custom Field
-                    </button>
-                  </div>
-                )}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                Select Field Input Type
+                              </label>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                                {([
+                                  { id: 'text', label: '📝 Plain Text' },
+                                  { id: 'number', label: '🔢 Number' },
+                                  { id: 'date', label: '📅 Date' },
+                                  { id: 'dropdown', label: '🎯 Drop Down' }
+                                ] as const).map((t) => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setCustomFieldType(t.id)}
+                                    className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center transition ${customFieldType === t.id
+                                        ? 'bg-indigo-600 text-white shadow-2xs'
+                                        : 'text-slate-600 hover:bg-slate-200'
+                                      }`}
+                                  >
+                                    {t.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
 
-                {/* Inline custom field addition panel */}
-                {addingCustomFieldToSection === 'customers' && (
-                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-4 animate-fade-in">
-                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Create Custom Customer Field</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        value={customFieldName}
-                        onChange={(e) => setCustomFieldName(e.target.value)}
-                        placeholder="Field Name (e.g., GSTIN Number)"
-                        className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition bg-white"
-                      />
-                      <input
-                        type="text"
-                        value={customFieldDesc}
-                        onChange={(e) => setCustomFieldDesc(e.target.value)}
-                        placeholder="Short description / purpose"
-                        className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition bg-white"
-                      />
-                    </div>
+                            {customFieldType === 'dropdown' && (
+                              <div className="space-y-1.5 animate-fade-in">
+                                <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                  Dropdown Options (separated with a comma) <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={customFieldDropdownOptions}
+                                  onChange={(e) => setCustomFieldDropdownOptions(e.target.value)}
+                                  placeholder="e.g. Option A, Option B, Option C"
+                                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                                />
+                              </div>
+                            )}
 
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Select Field Input Type
-                      </label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                        {([
-                          { id: 'text', label: '📝 Plain Text' },
-                          { id: 'number', label: '🔢 Number' },
-                          { id: 'date', label: '📅 Date' },
-                          { id: 'dropdown', label: '🎯 Drop Down' }
-                        ] as const).map((t) => (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => setCustomFieldType(t.id)}
-                            className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center transition ${
-                              customFieldType === t.id
-                                ? 'bg-indigo-600 text-white shadow-2xs'
-                                : 'text-slate-600 hover:bg-slate-200'
-                            }`}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {customFieldType === 'dropdown' && (
-                      <div className="space-y-1.5 animate-fade-in">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                          Dropdown Options (separated with a comma) <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={customFieldDropdownOptions}
-                          onChange={(e) => setCustomFieldDropdownOptions(e.target.value)}
-                          placeholder="e.g. Option A, Option B, Option C"
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex justify-end gap-2 text-xs font-bold pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAddingCustomFieldToSection(null);
-                          setCustomFieldType('text');
-                          setCustomFieldDropdownOptions('');
-                        }}
-                        className="px-3 py-1.5 text-slate-500 hover:bg-slate-150 rounded"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAddCustomField('customers')}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded"
-                      >
-                        Save Custom Field
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-                </>)}
-              </div>
-
-              </div>
-              )}
-
-              {/* --- TAB 4 (Projects) --- */}
-              {currentTab === 4 && (
-              <div className="space-y-6">
-              {/* SECTION: PROJECTS */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-orange-600" />
-                    <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                      3. Solar Project Technical Details
-                    </h3>
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  ⚡ <strong>Note:</strong> Remove any parameters below that you do not use in your daily operations or keep track of.
-                </p>
-
-                {/* Projects Fields List */}
-                <div className="space-y-3">
-                  {sections.find(s => s.id === 'projects')?.fields.map(field => renderFieldRow('projects', field))}
-                </div>
-
-                {/* Add Custom Field Button at the bottom */}
-                {addingCustomFieldToSection !== 'projects' && (
-                  <div className="flex justify-start pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setAddingCustomFieldToSection('projects')}
-                      className="text-xs font-black text-orange-600 hover:text-orange-800 flex items-center gap-1.5 bg-orange-50 hover:bg-orange-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      Add Custom Field
-                    </button>
-                  </div>
-                )}
-
-                {/* Custom field addition */}
-                {addingCustomFieldToSection === 'projects' && (
-                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-4 animate-fade-in">
-                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Create Custom Project Field</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        value={customFieldName}
-                        onChange={(e) => setCustomFieldName(e.target.value)}
-                        placeholder="Field Name (e.g., Battery Storage Capacity)"
-                        className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-orange-500 outline-none transition bg-white"
-                      />
-                      <input
-                        type="text"
-                        value={customFieldDesc}
-                        onChange={(e) => setCustomFieldDesc(e.target.value)}
-                        placeholder="Short description / purpose"
-                        className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-orange-500 outline-none transition bg-white"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Select Field Input Type
-                      </label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                        {([
-                          { id: 'text', label: '📝 Plain Text' },
-                          { id: 'number', label: '🔢 Number' },
-                          { id: 'date', label: '📅 Date' },
-                          { id: 'dropdown', label: '🎯 Drop Down' }
-                        ] as const).map((t) => (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => setCustomFieldType(t.id)}
-                            className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center transition ${
-                              customFieldType === t.id
-                                ? 'bg-indigo-600 text-white shadow-2xs'
-                                : 'text-slate-600 hover:bg-slate-200'
-                            }`}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {customFieldType === 'dropdown' && (
-                      <div className="space-y-1.5 animate-fade-in">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                          Dropdown Options (separated with a comma) <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={customFieldDropdownOptions}
-                          onChange={(e) => setCustomFieldDropdownOptions(e.target.value)}
-                          placeholder="e.g. Option A, Option B, Option C"
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex justify-end gap-2 text-xs font-bold pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAddingCustomFieldToSection(null);
-                          setCustomFieldType('text');
-                          setCustomFieldDropdownOptions('');
-                        }}
-                        className="px-3 py-1.5 text-slate-500 hover:bg-slate-150 rounded"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAddCustomField('projects')}
-                        className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded"
-                      >
-                        Save Custom Field
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-
-              {/* BOTTOM NAV - Prev / Next */}
-              <div className="flex items-center justify-between pt-2 pb-1">
-                <button
-                  type="button"
-                  onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
-                >
-                  ← Prev
-                </button>
-                <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 7`}</span>
-                {currentTab < 6 ? (
-                  <button
-                    type="button"
-                    onClick={() => { setCurrentTab(prev => Math.min(6, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Next →
-                  </button>
-                ) : (
-                  <span />
-                )}
-              </div>
-
-              </div>
-              )}
-
-              {/* --- TAB 5 Finance --- */}
-              {currentTab === 5 && (
-              <div className="space-y-6">
-
-              {/* BILLING FIELDS CARD */}
-              <div className={`rounded-3xl border p-6 sm:p-8 shadow-sm space-y-6 transition-all ${billingConfirmed ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200 bg-white'}`}>
-                <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-emerald-600" />
-                    <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                      Billing & Ledger Fields
-                    </h3>
-                  </div>
-                  {billingConfirmed ? (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${financialsStatus === 'configured' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                        {financialsStatus === 'configured' ? 'Confirmed' : 'Skipped'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setBillingConfirmed(false)}
-                        className="px-2.5 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        <Edit className="w-3 h-3" />
-                        Edit
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-1.5 shrink-0">
-                      <button type="button" onClick={() => {
-                        setFinancialsStatus('skipped');
-                        setBillingConfirmed(true);
-                      }}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${financialsStatus === 'skipped' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
-                        Skip
-                      </button>
-                      <button type="button" onClick={() => {
-                        setFinancialsStatus('configured');
-                        setBillingConfirmed(true);
-                      }}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition flex items-center gap-1 ${financialsStatus === 'configured' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
-                        <Check className="w-3 h-3 stroke-[3]" />
-                        Confirm
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {billingConfirmed ? (
-                  <div className="rounded-2xl border border-emerald-200 bg-white/70 p-4 space-y-3">
-                    <p className="text-xs font-black text-slate-800">
-                      Current selection: {financialsStatus === 'configured' ? 'Billing module enabled' : 'Billing module skipped'}
-                    </p>
-                    {financialsStatus === 'configured' && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 border border-slate-200 p-3 rounded-2xl">
-                        {sections.find(s => s.id === 'financials')?.fields.filter(f => f.included).map(field => (
-                          <div key={field.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-100 shadow-3xs">
-                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-slate-800 truncate">{field.label}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">Type: {field.fieldType || 'text'}</p>
+                            <div className="flex justify-end gap-2 text-xs font-bold pt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddingCustomFieldToSection(null);
+                                  setCustomFieldType('text');
+                                  setCustomFieldDropdownOptions('');
+                                }}
+                                className="px-3 py-1.5 text-slate-500 hover:bg-slate-150 rounded"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAddCustomField('customers')}
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded"
+                              >
+                                Save Custom Field
+                              </button>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-[11px] text-slate-500">Use Edit to reopen and change this section.</p>
-                  </div>
-                ) : financialsStatus === 'configured' ? (
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-500">
-                      Configure monetary metrics. Note: Calculations of receivables are fully automatic based on payments entered. Keep or customize these tracked fields:
-                    </p>
-
-                    <div className="space-y-4">
-                      {sections.find(s => s.id === 'financials')?.fields.map(field => renderFieldRow('financials', field))}
+                        )}
+                      </>)}
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-6 bg-slate-50 border border-slate-200 rounded-2xl">
-                    <p className="text-xs text-slate-500 font-semibold">You have bypassed the Billing & Ledger Fields module.</p>
                   </div>
                 )}
-              </div>
 
-              {/* SECTION: GOVERNMENT SUBSIDIES */}
-              <div className={`rounded-3xl border p-6 sm:p-8 shadow-sm space-y-6 transition-all ${subsidyConfirmed ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200 bg-white'}`}>
-                <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-purple-600" />
-                    <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                      5. Subsidy Status & Portal Application Milestones
-                    </h3>
-                  </div>
-                  {subsidyConfirmed ? (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${subsidyEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                        {subsidyEnabled ? 'Confirmed' : 'Skipped'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSubsidyConfirmed(false)}
-                        className="px-2.5 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        <Edit className="w-3 h-3" />
-                        Edit
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-1.5 shrink-0">
-                      <button type="button" onClick={() => {
-                        setSubsidyEnabled(false);
-                        setSubsidyConfirmed(true);
-                      }}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${!subsidyEnabled ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
-                        Skip
-                      </button>
-                      <button type="button" onClick={() => {
-                        setSubsidyEnabled(true);
-                        setSubsidyConfirmed(true);
-                      }}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition flex items-center gap-1 ${subsidyEnabled ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
-                        <Check className="w-3 h-3 stroke-[3]" />
-                        Confirm
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {/* --- TAB 4 (Projects) --- */}
+                {currentTab === 4 && (
+                  <div className="space-y-6">
+                    {/* SECTION: PROJECTS */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-5 h-5 text-orange-600" />
+                          <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                            3. Solar Project Technical Details
+                          </h3>
+                        </div>
+                      </div>
 
-                {subsidyConfirmed ? (
-                  <div className="rounded-2xl border border-emerald-200 bg-white/70 p-4 space-y-3">
-                    <p className="text-xs font-black text-slate-800">
-                      Current selection: {subsidyEnabled ? 'Subsidy module enabled' : 'Subsidy module skipped'}
-                    </p>
-                    {subsidyEnabled && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 border border-slate-200 p-3 rounded-2xl">
-                        {sections.find(s => s.id === 'subsidy_status_history')?.fields.filter(f => f.included).map(field => (
-                          <div key={field.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-100 shadow-3xs">
-                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-slate-800 truncate">{field.label}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">Type: {field.fieldType || 'text'}</p>
+                      <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        ⚡ <strong>Note:</strong> System Capacity (kWp) is the only pre-loaded field. Use "Add from Predefined List" to pick standard fields (Connection Type, Vendor, EC Number, Meter Category, etc.) or "Add Custom Field" for your own.
+                      </p>
+
+                      {/* Projects Fields List */}
+                      <div className="space-y-3">
+                        {sections.find(s => s.id === 'projects')?.fields.map(field => renderFieldRow('projects', field))}
+                      </div>
+
+
+                      {/* Add Field Options for Projects */}
+                      {addingCustomFieldToSection !== 'projects' && showPredefinedPicker !== 'projects' && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => { setShowPredefinedPicker('projects'); setPredefinedPickerCategory('All'); }}
+                            className="text-xs font-black text-emerald-700 hover:text-emerald-900 flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer border border-emerald-200"
+                          >
+                            <span className="text-sm leading-none">📋</span>
+                            Add from Predefined List
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAddingCustomFieldToSection('projects')}
+                            className="text-xs font-black text-orange-600 hover:text-orange-800 flex items-center gap-1.5 bg-orange-50 hover:bg-orange-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer border border-orange-200"
+                          >
+                            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                            Add Custom Field
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Predefined Field Picker Panel */}
+                      {showPredefinedPicker === 'projects' && (
+                        <div className="bg-slate-50 border border-emerald-200 p-4 rounded-2xl space-y-4 animate-fade-in">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">📋 Predefined Field Library – Technical</h4>
+                            <button type="button" onClick={() => setShowPredefinedPicker(null)} className="text-slate-400 hover:text-slate-700 text-xs font-bold px-2 py-1 hover:bg-slate-200 rounded-lg transition">✕ Close</button>
+                          </div>
+                          {/* Category Filter */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {['All', 'Core Utility', 'Grid & Utility', 'Equipment', 'Site & Survey', 'Documentation'].map(cat => (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setPredefinedPickerCategory(cat)}
+                                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition ${predefinedPickerCategory === cat ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Field List */}
+                          <div className="grid grid-cols-1 gap-1.5 max-h-72 overflow-y-auto pr-1">
+                            {PREDEFINED_PROJECT_FIELDS
+                              .filter(f => predefinedPickerCategory === 'All' || f.category === predefinedPickerCategory)
+                              .map(preField => {
+                                const alreadyAdded = sections.find(s => s.id === 'projects')?.fields.some(f => f.id === preField.id);
+                                return (
+                                  <div key={preField.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border transition ${alreadyAdded ? 'bg-emerald-50/40 border-emerald-200 opacity-60' : 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30'}`}>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-bold text-slate-800 truncate">{preField.label}</p>
+                                      <p className="text-[10px] text-slate-400 truncate">{preField.description}</p>
+                                      <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded font-mono">{preField.fieldType}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      disabled={alreadyAdded}
+                                      onClick={() => handleAddPredefinedField('projects', preField)}
+                                      className={`shrink-0 px-2.5 py-1.5 text-[10px] font-black rounded-lg transition ${alreadyAdded ? 'bg-emerald-100 text-emerald-600 cursor-default' : 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer'}`}
+                                    >
+                                      {alreadyAdded ? '✓ Added' : '+ Add'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                          <p className="text-[10px] text-slate-400 italic">You can also add your own custom fields below using "Add Custom Field".</p>
+                        </div>
+                      )}
+
+
+                      {/* Custom field addition */}
+                      {addingCustomFieldToSection === 'projects' && (
+                        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-4 animate-fade-in">
+                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Create Custom Project Field</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <input
+                              type="text"
+                              value={customFieldName}
+                              onChange={(e) => setCustomFieldName(e.target.value)}
+                              placeholder="Field Name (e.g., Battery Storage Capacity)"
+                              className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-orange-500 outline-none transition bg-white"
+                            />
+                            <input
+                              type="text"
+                              value={customFieldDesc}
+                              onChange={(e) => setCustomFieldDesc(e.target.value)}
+                              placeholder="Short description / purpose"
+                              className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-orange-500 outline-none transition bg-white"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              Select Field Input Type
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                              {([
+                                { id: 'text', label: '📝 Plain Text' },
+                                { id: 'number', label: '🔢 Number' },
+                                { id: 'date', label: '📅 Date' },
+                                { id: 'dropdown', label: '🎯 Drop Down' }
+                              ] as const).map((t) => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => setCustomFieldType(t.id)}
+                                  className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center transition ${customFieldType === t.id
+                                      ? 'bg-indigo-600 text-white shadow-2xs'
+                                      : 'text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                >
+                                  {t.label}
+                                </button>
+                              ))}
                             </div>
                           </div>
-                        ))}
+
+                          {customFieldType === 'dropdown' && (
+                            <div className="space-y-1.5 animate-fade-in">
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                Dropdown Options (separated with a comma) <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={customFieldDropdownOptions}
+                                onChange={(e) => setCustomFieldDropdownOptions(e.target.value)}
+                                placeholder="e.g. Option A, Option B, Option C"
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex justify-end gap-2 text-xs font-bold pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAddingCustomFieldToSection(null);
+                                setCustomFieldType('text');
+                                setCustomFieldDropdownOptions('');
+                              }}
+                              className="px-3 py-1.5 text-slate-500 hover:bg-slate-150 rounded"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAddCustomField('projects')}
+                              className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded"
+                            >
+                              Save Custom Field
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+
+                    {/* BOTTOM NAV - Prev / Next */}
+                    <div className="flex items-center justify-between pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 8`}</span>
+                      {currentTab < 7 ? (
+                        <button
+                          type="button"
+                          onClick={() => { setCurrentTab(prev => Math.min(7, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          Next →
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+
+                  </div>
+                )}
+
+                {/* --- TAB 5 Company --- */}
+                {currentTab === 5 && (
+                  <div className="space-y-6">
+
+                    {/* Branch Office configurations */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-4">
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                        <Building2 className="w-5 h-5 text-amber-500 font-bold" />
+                        <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                          Branch Office Configurations
+                        </h3>
                       </div>
-                    )}
-                    <p className="text-[11px] text-slate-500">Use Edit to reopen and change this section.</p>
-                  </div>
-                ) : subsidyEnabled ? (
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-500">
-                      Tracks government solar portal subsidy files from pending registry to final credit disbursement. Keep or customize these tracked fields:
-                    </p>
+                      <div className="bg-amber-50/50 border border-amber-200/70 rounded-2xl p-4 sm:p-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <span className="text-sm font-bold text-amber-950 block">Do you operate from more than 1 branch office?</span>
+                            <span className="text-xs text-amber-800/80 mt-0.5 block">If no, we will automatically clean up and remove the branch allocation tracking completely.</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleBranchToggle(true)}
+                              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border cursor-pointer ${hasMultipleBranches === true
+                                  ? 'bg-amber-600 text-slate-950 border-amber-600 shadow-sm'
+                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                }`}
+                            >
+                              Yes, track branches
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBranchToggle(false)}
+                              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border cursor-pointer ${hasMultipleBranches === false
+                                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                }`}
+                            >
+                              No, remove branch field
+                            </button>
+                          </div>
+                        </div>
+                      </div>
 
-                    <div className="space-y-4">
-                      {sections.find(s => s.id === 'subsidy_status_history')?.fields.map(field => renderFieldRow('subsidy_status_history', field))}
+                      {hasMultipleBranches === true && (
+                        <div className="bg-amber-50/20 border border-amber-200/50 rounded-2xl p-4 sm:p-5 space-y-3 animate-fade-in">
+                          <div>
+                            <span className="text-xs font-bold text-amber-950 uppercase tracking-wider block">Configure Your Branch Offices</span>
+                            <span className="text-[11px] text-amber-850">Add the values of different branches you have:</span>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newBranchInput}
+                              onChange={(e) => setNewBranchInput(e.target.value)}
+                              placeholder="e.g., Delhi Branch, Bangalore Office"
+                              className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:border-amber-500 outline-none transition font-medium text-slate-900"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddBranch();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddBranch}
+                              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              Add Branch
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {branchList.map((branch, idx) => (
+                              <div
+                                key={idx}
+                                className="bg-white border border-slate-200 pl-3 pr-2 py-1 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-2"
+                              >
+                                <span>{branch}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBranch(branch)}
+                                  className="text-slate-400 hover:text-red-600 p-0.5 rounded-full hover:bg-red-50 transition cursor-pointer"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-6 bg-slate-50 border border-slate-200 rounded-2xl">
-                    <p className="text-xs text-slate-500 font-semibold">You have bypassed the Government Subsidy module.</p>
-                  </div>
-                )}
-              </div>
 
-              {/* SECTION: CUSTOMER BANKING INFO & FINANCING - SKIP OPTION - includes Payment Methods */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-                <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-teal-600" />
-                    <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                      6. Customer Banking & Loan Coordination Info
-                    </h3>
-                  </div>
-                </div>
+                    {/* Customer Reference Number (CRN) & Project ID Tracking Model */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-4">
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                        <Key className="w-5 h-5 text-indigo-500" />
+                        <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                          Customer Reference Number (CRN) & Project ID Tracking
+                        </h3>
+                      </div>
+                      {crnConfirmed ? (
+                        <div className="py-2.5 px-3.5 sm:px-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 hover:bg-emerald-50/40 transition-all animate-fade-in flex items-center justify-between gap-3 text-xs shadow-3xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                              <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-1.5 min-w-0">
+                              <span className="font-extrabold text-slate-800">
+                                Tracking:
+                              </span>
+                              <span className="font-semibold text-slate-600 truncate">
+                                {crnTrackingType === 'skipped' ? (
+                                  'Skipped (No CRN or Project ID tracking)'
+                                ) : (
+                                  `Auto-increment tracker [${crnScope === 'crn'
+                                    ? 'CRN Only'
+                                    : crnScope === 'project'
+                                      ? 'Project ID Only'
+                                      : 'Both CRN & Project ID'
+                                  }] with prefix "${crnPrefix}"`
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setCrnConfirmed(false)}
+                            className="p-1 px-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                            title="Edit CRN setup"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-slate-500" />
+                            <span className="text-[11px] font-black text-slate-500 hover:text-indigo-700">Edit</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 border border-slate-200/85 rounded-2xl p-5 sm:p-6 space-y-5 animate-fade-in">
+                          <div className="space-y-1">
+                            <span className="text-sm font-bold text-slate-950 block">
+                              Configure Customer Reference Number (CRN) & Project ID Tracking
+                            </span>
+                            <span className="text-xs text-slate-500 block leading-relaxed">
+                              Specify how your CRM should automatically assign and track individual client reference codes or Project IDs.
+                            </span>
+                          </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setBankInfoEnabled(true)}
-                    className={`flex-1 px-4 py-3 rounded-2xl text-xs font-bold border transition text-center ${
-                      bankInfoEnabled
-                        ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    🏦 Yes, Keep Banking & Loan Details
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBankInfoEnabled(false)}
-                    className={`flex-1 px-4 py-3 rounded-2xl text-xs font-bold border transition text-center ${
-                      !bankInfoEnabled
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    ⏭️ No, Skip Banking Details
-                  </button>
-                </div>
+                          {/* What would you like to track choice block */}
+                          <div className="space-y-2 pt-1">
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                              Select What to Track <span className="text-red-500">*</span>
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                              <button
+                                type="button"
+                                onClick={() => setCrnScope('crn')}
+                                className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${crnScope === 'crn'
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                                  }`}
+                              >
+                                <span className="block text-xs font-black">🔢 CRN Only</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCrnScope('project')}
+                                className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${crnScope === 'project'
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                                  }`}
+                              >
+                                <span className="block text-xs font-black">📁 Project ID Only</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCrnScope('both')}
+                                className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${crnScope === 'both'
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                                  }`}
+                              >
+                                <span className="block text-xs font-black">⚡ Both CRN & Project ID</span>
+                              </button>
+                            </div>
+                          </div>
 
-                {bankInfoEnabled ? (
-                  <div className="space-y-4 animate-fade-in pt-2">
-                    <p className="text-xs text-slate-500">
-                      Specify which customer bank details and loan documents your team needs to collect and track inside the CRM:
-                    </p>
-                    <div className="space-y-4">
-                      {sections.find(s => s.id === 'bank_info')?.fields.map(field => renderFieldRow('bank_info', field))}
+                          {/* Sequence Prefix configuration block */}
+                          <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-2.5">
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                              Custom Sequence Prefix <span className="text-red-500">*</span>
+                            </label>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <input
+                                type="text"
+                                value={crnPrefix}
+                                onChange={(e) => setCrnPrefix(e.target.value)}
+                                placeholder="e.g., CRN-2026-"
+                                className="w-full sm:max-w-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-indigo-500 outline-none transition font-semibold text-slate-900"
+                              />
+                              <div className="flex-1 bg-slate-50 rounded-lg border border-slate-200 p-2.5 flex items-center text-[10px] text-slate-500 font-mono">
+                                💡 Sample code output: <strong className="text-slate-800 ml-1.5 font-bold">{crnPrefix}001</strong>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Unified Action Block for CRN Setup */}
+                          <div className="pt-3 border-t border-slate-200/60 flex flex-col sm:flex-row gap-2 justify-end items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCrnTrackingType('skipped');
+                                setCrnConfirmed(true);
+                                setSaveFeedback('Skipped CRN & Project ID tracking.');
+                                setTimeout(() => setSaveFeedback(''), 2500);
+                              }}
+                              className="w-full sm:w-auto px-3.5 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                              Default
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!crnPrefix.trim()) {
+                                  setSaveFeedback('Please enter a custom sequence prefix!');
+                                  setTimeout(() => setSaveFeedback(''), 2500);
+                                  return;
+                                }
+                                setCrnTrackingType('default');
+                                setCrnConfirmed(true);
+                                setSaveFeedback('Tracking configuration confirmed!');
+                                setTimeout(() => setSaveFeedback(''), 2500);
+                              }}
+                              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              Confirm Tracking Setup
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-6 bg-slate-50 border border-slate-200 rounded-2xl">
-                    <p className="text-xs text-slate-500 font-semibold">You have bypassed the Customer Banking Details & Loan module.</p>
+
+                    {/* SECTION: COMPANY-SIDE TRACKING */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-5 h-5 text-violet-600" />
+                          <div>
+                            <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                              Company-Side Tracking Fields
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5">Internal fields for tracking POCs, application numbers, payment references, and team assignments.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Company fields list */}
+                      <div className="space-y-3">
+                        {sections.find(s => s.id === 'company_tracking')?.fields.map(field => renderFieldRow('company_tracking', field))}
+                      </div>
+
+                      {/* Add Custom Field for Company */}
+                      {addingCustomFieldToSection !== 'company_tracking' && (
+                        <div className="flex justify-start pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setAddingCustomFieldToSection('company_tracking')}
+                            className="text-xs font-black text-violet-600 hover:text-violet-800 flex items-center gap-1.5 bg-violet-50 hover:bg-violet-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                            Add Custom Field
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Custom field addition panel */}
+                      {addingCustomFieldToSection === 'company_tracking' && (
+                        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-4 animate-fade-in">
+                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Create Custom Company Field</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <input
+                              type="text"
+                              value={customFieldName}
+                              onChange={(e) => setCustomFieldName(e.target.value)}
+                              placeholder="Field Name (e.g., Region Manager)"
+                              className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-violet-500 outline-none transition bg-white"
+                            />
+                            <input
+                              type="text"
+                              value={customFieldDesc}
+                              onChange={(e) => setCustomFieldDesc(e.target.value)}
+                              placeholder="Short description / purpose"
+                              className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-violet-500 outline-none transition bg-white"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              Select Field Input Type
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                              {([
+                                { id: 'text', label: '📝 Plain Text' },
+                                { id: 'number', label: '🔢 Number' },
+                                { id: 'date', label: '📅 Date' },
+                                { id: 'dropdown', label: '🎯 Drop Down' }
+                              ] as const).map((t) => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => setCustomFieldType(t.id)}
+                                  className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center transition ${customFieldType === t.id
+                                      ? 'bg-violet-600 text-white shadow-2xs'
+                                      : 'text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                >
+                                  {t.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          {customFieldType === 'dropdown' && (
+                            <div className="space-y-1.5 animate-fade-in">
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                Dropdown Options (comma separated) <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={customFieldDropdownOptions}
+                                onChange={(e) => setCustomFieldDropdownOptions(e.target.value)}
+                                placeholder="e.g. North, South, East, West"
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:border-violet-500 outline-none transition font-semibold text-slate-900"
+                              />
+                            </div>
+                          )}
+                          <div className="flex justify-end gap-2 text-xs font-bold pt-1">
+                            <button type="button" onClick={() => { setAddingCustomFieldToSection(null); setCustomFieldType('text'); setCustomFieldDropdownOptions(''); }} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 rounded">
+                              Cancel
+                            </button>
+                            <button type="button" onClick={() => handleAddCustomField('company_tracking')} className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded">
+                              Save Custom Field
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* BOTTOM NAV - Prev / Next */}
+                    <div className="flex items-center justify-between pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 8`}</span>
+                      {currentTab < 7 ? (
+                        <button
+                          type="button"
+                          onClick={() => { setCurrentTab(prev => Math.min(7, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          Next →
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+
                   </div>
                 )}
-              </div>
+
+                {/* --- TAB 6 Finance --- */}
+                {currentTab === 6 && (
+                  <div className="space-y-6">
+
+                    {/* BILLING FIELDS CARD */}
+                    <div className={`rounded-3xl border p-6 sm:p-8 shadow-sm space-y-6 transition-all ${billingConfirmed ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200 bg-white'}`}>
+                      <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Wallet className="w-5 h-5 text-emerald-600" />
+                          <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                            Billing & Ledger Fields
+                          </h3>
+                        </div>
+                        {billingConfirmed ? (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${financialsStatus === 'configured' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                              {financialsStatus === 'configured' ? 'Confirmed' : 'Skipped'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setBillingConfirmed(false)}
+                              className="px-2.5 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit className="w-3 h-3" />
+                              Edit
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1.5 shrink-0">
+                            <button type="button" onClick={() => {
+                              setFinancialsStatus('skipped');
+                              setBillingConfirmed(true);
+                            }}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${financialsStatus === 'skipped' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+                              Skip
+                            </button>
+                            <button type="button" onClick={() => {
+                              setFinancialsStatus('configured');
+                              setBillingConfirmed(true);
+                            }}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition flex items-center gap-1 ${financialsStatus === 'configured' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+                              <Check className="w-3 h-3 stroke-[3]" />
+                              Confirm
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {billingConfirmed ? (
+                        <div className="rounded-2xl border border-emerald-200 bg-white/70 p-4 space-y-3 animate-fade-in">
+                          <p className="text-xs font-black text-slate-800">
+                            Current selection: {financialsStatus === 'configured' ? 'Billing module enabled' : 'Billing module skipped'}
+                          </p>
+
+                          {/* Display fields: all included for configured, only custom fields for skipped */}
+                          {((financialsStatus === 'configured') || (financialsStatus === 'skipped')) && (
+                            <div className="space-y-2">
+                              {financialsStatus === 'skipped' && (sections.find(s => s.id === 'financials')?.fields.filter(f => f.included && f.isCustom) ?? []).length > 0 && (
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Custom Tracking Tags:</p>
+                              )}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 border border-slate-200 p-3 rounded-2xl">
+                                {sections.find(s => s.id === 'financials')?.fields.filter(f => {
+                                  if (financialsStatus === 'configured') return f.included;
+                                  // if skipped, only show custom fields that are included
+                                  return f.included && f.isCustom;
+                                }).map(field => (
+                                  <div key={field.id} className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-white border border-slate-100 shadow-3xs">
+                                    <div className="flex items-center gap-2">
+                                      <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3] shrink-0" />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-bold text-slate-800 truncate">{field.label}</p>
+                                        <p className="text-[10px] text-slate-400 font-mono">Type: {field.fieldType || 'text'}</p>
+                                      </div>
+                                    </div>
+                                    {field.fieldType === 'dropdown' && field.dropdownOptions && (
+                                      <div className="flex flex-wrap gap-1 mt-1 pl-5">
+                                        {field.dropdownOptions.split(',').map((opt, oIdx) => (
+                                          <span key={oIdx} className="bg-indigo-50 text-indigo-700 border border-indigo-100/70 text-[9px] font-bold px-1.5 py-0.2 rounded">
+                                            {opt.trim()}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <p className="text-[11px] text-slate-500">Use Edit to reopen and change this section.</p>
+                        </div>
+                      ) : financialsStatus === 'configured' ? (
+                        <div className="space-y-4">
+                          <p className="text-xs text-slate-500">
+                            Configure monetary metrics. Note: Calculations of receivables are fully automatic based on payments entered. Keep or customize these tracked fields:
+                          </p>
+
+                          <div className="space-y-4">
+                            {sections.find(s => s.id === 'financials')?.fields.map(field => renderFieldRow('financials', field))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="text-center py-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                            <p className="text-xs text-slate-500 font-semibold">Billing & Ledger Fields module skipped.</p>
+                            <p className="text-[10px] text-slate-400 mt-1">You can still add custom tracking tags below if needed.</p>
+                          </div>
+
+                          {/* Show any custom fields already added even when skipped */}
+                          {(sections.find(s => s.id === 'financials')?.fields.filter(f => f.isCustom) ?? []).length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Custom tags added:</p>
+                              {sections.find(s => s.id === 'financials')?.fields.filter(f => f.isCustom).map(field => renderFieldRow('financials', field))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SECTION: GOVERNMENT SUBSIDIES */}
+                    <div className={`rounded-3xl border p-6 sm:p-8 shadow-sm space-y-6 transition-all ${subsidyConfirmed ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200 bg-white'}`}>
+                      <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-5 h-5 text-purple-600" />
+                          <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                            5. Subsidy Status & Portal Application Milestones
+                          </h3>
+                        </div>
+                        {subsidyConfirmed ? (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${subsidyEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                              {subsidyEnabled ? 'Confirmed' : 'Skipped'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSubsidyConfirmed(false)}
+                              className="px-2.5 py-1.5 text-[11px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit className="w-3 h-3" />
+                              Edit
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1.5 shrink-0">
+                            <button type="button" onClick={() => {
+                              setSubsidyEnabled(false);
+                              setSubsidyConfirmed(true);
+                            }}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${!subsidyEnabled ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+                              Skip
+                            </button>
+                            <button type="button" onClick={() => {
+                              setSubsidyEnabled(true);
+                              setSubsidyConfirmed(true);
+                            }}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition flex items-center gap-1 ${subsidyEnabled ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+                              <Check className="w-3 h-3 stroke-[3]" />
+                              Confirm
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {subsidyConfirmed ? (
+                        <div className="rounded-2xl border border-emerald-200 bg-white/70 p-4 space-y-3">
+                          <p className="text-xs font-black text-slate-800">
+                            Current selection: {subsidyEnabled ? 'Subsidy module enabled' : 'Subsidy module skipped'}
+                          </p>
+                          {subsidyEnabled && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 border border-slate-200 p-3 rounded-2xl">
+                              {sections.find(s => s.id === 'subsidy_status_history')?.fields.filter(f => f.included).map(field => (
+                                <div key={field.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-100 shadow-3xs">
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-800 truncate">{field.label}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">Type: {field.fieldType || 'text'}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <p className="text-[11px] text-slate-500">Use Edit to reopen and change this section.</p>
+                        </div>
+                      ) : subsidyEnabled ? (
+                        <div className="space-y-4">
+                          <p className="text-xs text-slate-500">
+                            Tracks government solar portal subsidy files from pending registry to final credit disbursement. Keep or customize these tracked fields:
+                          </p>
+
+                          <div className="space-y-4">
+                            {sections.find(s => s.id === 'subsidy_status_history')?.fields.map(field => renderFieldRow('subsidy_status_history', field))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 bg-slate-50 border border-slate-200 rounded-2xl">
+                          <p className="text-xs text-slate-500 font-semibold">You have bypassed the Government Subsidy module.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SECTION: CUSTOMER BANKING INFO & FINANCING - SKIP OPTION - includes Payment Methods */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+                      <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-5 h-5 text-teal-600" />
+                          <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                            6. Customer Banking & Loan Coordination Info
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setBankInfoEnabled(true)}
+                          className={`flex-1 px-4 py-3 rounded-2xl text-xs font-bold border transition text-center ${bankInfoEnabled
+                              ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                            }`}
+                        >
+                          🏦 Yes, Keep Banking & Loan Details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBankInfoEnabled(false)}
+                          className={`flex-1 px-4 py-3 rounded-2xl text-xs font-bold border transition text-center ${!bankInfoEnabled
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                            }`}
+                        >
+                          ⏭️ No, Skip Banking Details
+                        </button>
+                      </div>
+
+                      {bankInfoEnabled ? (
+                        <div className="space-y-4 animate-fade-in pt-2">
+                          <p className="text-xs text-slate-500">
+                            Specify which customer bank details and loan documents your team needs to collect and track inside the CRM:
+                          </p>
+                          <div className="space-y-4">
+                            {sections.find(s => s.id === 'bank_info')?.fields.map(field => renderFieldRow('bank_info', field))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 bg-slate-50 border border-slate-200 rounded-2xl">
+                          <p className="text-xs text-slate-500 font-semibold">You have bypassed the Customer Banking Details & Loan module.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dynamic Field Configuration for Billing & Ledger (unconditional at the end of the Finance Tab) */}
+                    <div className="bg-slate-50 border border-slate-200/90 p-6 sm:p-8 rounded-3xl space-y-5 shadow-3xs">
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-200/60">
+                        <span className="text-lg">🛠️</span>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                            Customize Billing & Ledger Field Library
+                          </h4>
+                          <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                            Add more tracking variables to the dynamic financial ledger. Choosing an option will automatically open edit mode in the Billing card above.
+                          </p>
+                        </div>
+                      </div>
+
+                      {addingCustomFieldToSection !== 'financials' && showPredefinedPicker !== 'financials' && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBillingConfirmed(false); // Automatically unlock Billing card
+                              setShowPredefinedPicker('financials');
+                              setPredefinedPickerCategory('All');
+                            }}
+                            className="text-xs font-black text-emerald-700 hover:text-emerald-900 flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer border border-emerald-200"
+                          >
+                            <span className="text-sm leading-none">📋</span>
+                            Add from Predefined List
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBillingConfirmed(false); // Automatically unlock Billing card
+                              setAddingCustomFieldToSection('financials');
+                            }}
+                            className="text-xs font-black text-teal-600 hover:text-teal-800 flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer border border-teal-200"
+                          >
+                            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                            Add Custom Field
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Predefined Finance Field Picker */}
+                      {showPredefinedPicker === 'financials' && (
+                        <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-4 animate-fade-in">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                              <span>📋</span> Choose Predefined Finance Field
+                            </h4>
+                            <button type="button" onClick={() => setShowPredefinedPicker(null)} className="text-slate-450 hover:text-slate-700 text-xs font-bold px-2.5 py-1 hover:bg-slate-100 rounded-lg transition">✕ Close</button>
+                          </div>
+                          {/* Category Filter */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {['All', 'Payments', 'Tax & Compliance', 'Subsidy', 'Loan', 'Internal'].map(cat => (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setPredefinedPickerCategory(cat)}
+                                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition ${predefinedPickerCategory === cat ? 'bg-teal-650 text-white border-teal-600 bg-teal-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Field List */}
+                          <div className="grid grid-cols-1 gap-1.5 max-h-72 overflow-y-auto pr-1">
+                            {PREDEFINED_FINANCE_FIELDS
+                              .filter(f => predefinedPickerCategory === 'All' || f.category === predefinedPickerCategory)
+                              .map(preField => {
+                                const alreadyAdded = sections.find(s => s.id === 'financials')?.fields.some(f => f.id === preField.id);
+                                return (
+                                  <div key={preField.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border transition ${alreadyAdded ? 'bg-emerald-50/40 border-emerald-200 opacity-60' : 'bg-white border-slate-200 hover:border-teal-300 hover:bg-teal-50/20'}`}>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-bold text-slate-800 truncate">{preField.label}</p>
+                                      <p className="text-[10px] text-slate-400 truncate">{preField.description}</p>
+                                      <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded font-mono">{preField.fieldType}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      disabled={alreadyAdded}
+                                      onClick={() => handleAddPredefinedField('financials', preField)}
+                                      className={`shrink-0 px-2.5 py-1.5 text-[10px] font-black rounded-lg transition ${alreadyAdded ? 'bg-emerald-100 text-emerald-600 cursor-default' : 'bg-teal-600 hover:bg-teal-500 text-white cursor-pointer'}`}
+                                    >
+                                      {alreadyAdded ? '✓ Added' : '+ Add'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Custom Finance Field */}
+                      {addingCustomFieldToSection === 'financials' && (
+                        <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-4 animate-fade-in">
+                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Create Custom Finance Field</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <input type="text" value={customFieldName} onChange={(e) => setCustomFieldName(e.target.value)} placeholder="Field Name (e.g., Commission Amount)" className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-teal-500 outline-none transition bg-white" />
+                            <input type="text" value={customFieldDesc} onChange={(e) => setCustomFieldDesc(e.target.value)} placeholder="Short description / purpose" className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:border-teal-500 outline-none transition bg-white" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Select Field Input Type</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                              {([{ id: 'text', label: '📝 Plain Text' }, { id: 'number', label: '🔢 Number' }, { id: 'date', label: '📅 Date' }, { id: 'dropdown', label: '🎯 Drop Down' }] as const).map((t) => (
+                                  <button key={t.id} type="button" onClick={() => setCustomFieldType(t.id)} className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center transition ${customFieldType === t.id ? 'bg-teal-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-200'}`}>{t.label}</button>
+                              ))}
+                            </div>
+                          </div>
+                          {customFieldType === 'dropdown' && (
+                            <div className="space-y-1.5 animate-fade-in">
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Dropdown Options (comma separated) *</label>
+                              <input type="text" required value={customFieldDropdownOptions} onChange={(e) => setCustomFieldDropdownOptions(e.target.value)} placeholder="e.g. Option 1, Option 2, Option 3" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:border-teal-500 outline-none transition font-semibold text-slate-900" />
+                            </div>
+                          )}
+                          <div className="flex justify-end gap-2 text-xs font-bold pt-1">
+                            <button type="button" onClick={() => { setAddingCustomFieldToSection(null); setCustomFieldType('text'); setCustomFieldDropdownOptions(''); }} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 rounded">Cancel</button>
+                            <button type="button" onClick={() => handleAddCustomField('financials')} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded">Save Custom Field</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
 
-              {/* BOTTOM NAV - Prev / Next */}
-              <div className="flex items-center justify-between pt-2 pb-1">
-                <button
-                  type="button"
-                  onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
-                >
-                  ← Prev
-                </button>
-                <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 7`}</span>
-                {currentTab < 6 ? (
-                  <button
-                    type="button"
-                    onClick={() => { setCurrentTab(prev => Math.min(6, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Next →
-                  </button>
-                ) : (
-                  <span />
+                    {/* BOTTOM NAV - Prev / Next */}
+                    <div className="flex items-center justify-between pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 8`}</span>
+                      {currentTab < 7 ? (
+                        <button
+                          type="button"
+                          onClick={() => { setCurrentTab(prev => Math.min(7, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="px-5 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          Next →
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+
+                  </div>
                 )}
-              </div>
 
-              </div>
-              )}
+                {/* --- TAB 7 Submit --- */}
+                {currentTab === 7 && (
+                  <div className="space-y-6">
+                    {/* EXTRA REMARKS SECTION */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
+                      <div className="flex items-center gap-2 mb-4">
+                        <FileText className="w-5 h-5 text-indigo-600" />
+                        <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
+                          8. Special CRM Notes or General Custom Request Comments
+                        </h3>
+                      </div>
+                      <textarea
+                        value={customNotes}
+                        onChange={(e) => setCustomNotes(e.target.value)}
+                        placeholder="e.g. We require a separate mobile app for site engineers to upload site surveys directly, or we need automatic daily WhatsApp reports..."
+                        rows={4}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:bg-white focus:border-amber-500 outline-none transition font-medium"
+                      ></textarea>
+                    </div>
 
-              {/* --- TAB 6 Submit --- */}
-              {currentTab === 6 && (
-              <div className="space-y-6">
-              {/* EXTRA REMARKS SECTION */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-base font-black uppercase tracking-wider text-slate-800">
-                    8. Special CRM Notes or General Custom Request Comments
-                  </h3>
-                </div>
-                <textarea
-                  value={customNotes}
-                  onChange={(e) => setCustomNotes(e.target.value)}
-                  placeholder="e.g. We require a separate mobile app for site engineers to upload site surveys directly, or we need automatic daily WhatsApp reports..."
-                  rows={4}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:bg-white focus:border-amber-500 outline-none transition font-medium"
-                ></textarea>
-              </div>
+                    {/* ACTION: GENERATE & SUBMIT BLUEPRINT */}
+                    <div className="pt-4 flex flex-col items-center gap-3">
+                      <button
+                        type="submit"
+                        disabled={emailStatus === 'sending'}
+                        className="px-10 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm uppercase tracking-wider rounded-2xl transition shadow-lg shadow-amber-500/15 hover:shadow-amber-500/25 active:scale-98 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-950" />
+                        {emailStatus === 'sending' ? 'Submitting Specifications...' : 'Submit Specifications'}
+                      </button>
+                    </div>
 
-              {/* ACTION: GENERATE & SUBMIT BLUEPRINT */}
-              <div className="pt-4 flex flex-col items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={emailStatus === 'sending'}
-                  className="px-10 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm uppercase tracking-wider rounded-2xl transition shadow-lg shadow-amber-500/15 hover:shadow-amber-500/25 active:scale-98 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-950" />
-                  {emailStatus === 'sending' ? 'Submitting Specifications...' : 'Submit Specifications'}
-                </button>
-              </div>
+                    {/* BOTTOM NAV - Prev / Next */}
+                    <div className="flex items-center justify-between pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 8`}</span>
+                      <span />
+                    </div>
 
-              {/* BOTTOM NAV - Prev / Next */}
-              <div className="flex items-center justify-between pt-2 pb-1">
-                <button
-                  type="button"
-                  onClick={() => { setCurrentTab(prev => Math.max(0, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`px-5 py-2.5 text-xs font-black rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 ${currentTab === 0 ? 'opacity-30 pointer-events-none' : ''}`}
-                >
-                  ← Prev
-                </button>
-                <span className="text-[11px] text-slate-400 font-semibold">{`${currentTab + 1} / 7`}</span>
-                <span />
-              </div>
+                  </div>
+                )}
 
-              </div>
-              )}
-
-            </form>
-          </div>
+              </form>
+            </div>
           )
         ) : (
-          
+
           /* VIEW SUBMISSION AND PROPOSAL VIEW */
           <div className="max-w-2xl mx-auto py-12 animate-fade-in">
             <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-8 sm:p-10 shadow-2xl relative overflow-hidden text-center space-y-6">
               <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
-              
+
               <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/20">
                 <CheckCircle2 className="w-9 h-9 text-emerald-400 animate-bounce" />
               </div>
-              
+
               <div className="space-y-2">
                 <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
                   Specifications Submitted!
