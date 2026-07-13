@@ -37,7 +37,7 @@ import {
   Edit,
   Settings
 } from 'lucide-react';
-import { INITIAL_SECTIONS, PREDEFINED_PROJECT_FIELDS, PREDEFINED_FINANCE_FIELDS, PredefinedField } from './initialData';
+import { INITIAL_SECTIONS, PREDEFINED_PROJECT_FIELDS, PREDEFINED_FINANCE_FIELDS, PREDEFINED_COMPANY_FIELDS, PredefinedField } from './initialData';
 import { SectionConfig, FieldConfig, ClientSubmission } from './types';
 import { supabase } from './supabaseClient';
 
@@ -310,9 +310,41 @@ export default function App() {
     if (d.backendPassword !== undefined) setBackendPassword(d.backendPassword);
     if (d.financialRoleViewPermission !== undefined) setFinancialRoleViewPermission(d.financialRoleViewPermission);
     if (d.sections !== undefined) {
-      // Merge loaded sections with INITIAL_SECTIONS to ensure new/missing sections are preserved
+      // Find all IDs of default fields in INITIAL_SECTIONS
+      const defaultFieldIds = new Set(INITIAL_SECTIONS.flatMap(s => s.fields.map(f => f.id)));
+      
+      // Find all IDs of predefined fields
+      const predefinedFieldIds = new Set([
+        ...PREDEFINED_PROJECT_FIELDS.map(f => f.id),
+        ...PREDEFINED_FINANCE_FIELDS.map(f => f.id),
+        ...PREDEFINED_COMPANY_FIELDS.map(f => f.id)
+      ]);
+      
+      // Clean loaded sections by removing default fields that belong to other sections,
+      // and stripping predefined fields that haven't been customized/confirmed.
+      const cleanedLoadedSections = d.sections.map((loadedSec: any) => {
+        return {
+          ...loadedSec,
+          fields: (loadedSec.fields || []).filter((f: any) => {
+            if (predefinedFieldIds.has(f.id)) {
+              // Strip predefined fields unless they have been confirmed or have notes
+              const isModified = f.confirmed === true || (f.notes && f.notes.trim() !== '');
+              return isModified;
+            }
+            
+            const isDefault = defaultFieldIds.has(f.id);
+            if (!isDefault) return true; // Keep custom fields here
+            
+            // It's a default field. Keep it only if its correct section is this loaded section
+            const correctSec = INITIAL_SECTIONS.find(s => s.fields.some(field => field.id === f.id));
+            return correctSec?.id === loadedSec.id;
+          })
+        };
+      });
+
+      // Merge with INITIAL_SECTIONS to ensure every default field is present in its correct section
       const mergedSections = INITIAL_SECTIONS.map(initSec => {
-        const loadedSec = d.sections.find((s: any) => s.id === initSec.id);
+        const loadedSec = cleanedLoadedSections.find((s: any) => s.id === initSec.id);
         if (!loadedSec) return initSec;
         const mergedFields = [...loadedSec.fields];
         initSec.fields.forEach(initField => {
@@ -3324,17 +3356,75 @@ export default function App() {
                         {sections.find(s => s.id === 'company_tracking')?.fields.map(field => renderFieldRow('company_tracking', field))}
                       </div>
 
-                      {/* Add Custom Field for Company */}
-                      {addingCustomFieldToSection !== 'company_tracking' && (
-                        <div className="flex justify-start pt-1">
+                      {/* Add Field Options for Company */}
+                      {addingCustomFieldToSection !== 'company_tracking' && showPredefinedPicker !== 'company_tracking' && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => { setShowPredefinedPicker('company_tracking'); setPredefinedPickerCategory('All'); }}
+                            className="text-xs font-black text-emerald-700 hover:text-emerald-900 flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer border border-emerald-200"
+                          >
+                            <span className="text-sm leading-none">📋</span>
+                            Add from Predefined List
+                          </button>
                           <button
                             type="button"
                             onClick={() => setAddingCustomFieldToSection('company_tracking')}
-                            className="text-xs font-black text-violet-600 hover:text-violet-800 flex items-center gap-1.5 bg-violet-50 hover:bg-violet-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer"
+                            className="text-xs font-black text-violet-600 hover:text-violet-800 flex items-center gap-1.5 bg-violet-50 hover:bg-violet-100/80 px-4 py-2.5 rounded-xl transition cursor-pointer border border-violet-200"
                           >
                             <Plus className="w-3.5 h-3.5 stroke-[3]" />
                             Add Custom Field
                           </button>
+                        </div>
+                      )}
+
+                      {/* Predefined Company Field Picker */}
+                      {showPredefinedPicker === 'company_tracking' && (
+                        <div className="bg-slate-50 border border-emerald-200 p-4 rounded-2xl space-y-4 animate-fade-in">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                              <span>📋</span> Predefined Company & Internal Fields
+                            </h4>
+                            <button type="button" onClick={() => setShowPredefinedPicker(null)} className="text-slate-400 hover:text-slate-700 text-xs font-bold px-2 py-1 hover:bg-slate-200 rounded-lg transition">✕ Close</button>
+                          </div>
+                          {/* Category Filter */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {['All', 'Registry', 'Operations', 'Dates', 'Internal'].map(cat => (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setPredefinedPickerCategory(cat)}
+                                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition ${predefinedPickerCategory === cat ? 'bg-violet-600 text-white border-violet-600 bg-violet-650' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Field List */}
+                          <div className="grid grid-cols-1 gap-1.5 max-h-72 overflow-y-auto pr-1">
+                            {PREDEFINED_COMPANY_FIELDS
+                              .filter(f => predefinedPickerCategory === 'All' || f.category === predefinedPickerCategory)
+                              .map(preField => {
+                                const alreadyAdded = sections.find(s => s.id === 'company_tracking')?.fields.some(f => f.id === preField.id);
+                                return (
+                                  <div key={preField.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border transition ${alreadyAdded ? 'bg-emerald-50/40 border-emerald-200 opacity-60' : 'bg-white border-slate-200 hover:border-violet-300 hover:bg-violet-50/20'}`}>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-bold text-slate-800 truncate">{preField.label}</p>
+                                      <p className="text-[10px] text-slate-400 truncate">{preField.description}</p>
+                                      <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded font-mono">{preField.fieldType}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      disabled={alreadyAdded}
+                                      onClick={() => handleAddPredefinedField('company_tracking', preField)}
+                                      className={`shrink-0 px-2.5 py-1.5 text-[10px] font-black rounded-lg transition ${alreadyAdded ? 'bg-emerald-100 text-emerald-600 cursor-default' : 'bg-violet-600 hover:bg-violet-500 text-white cursor-pointer'}`}
+                                    >
+                                      {alreadyAdded ? '✓ Added' : '+ Add'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                          </div>
                         </div>
                       )}
 
